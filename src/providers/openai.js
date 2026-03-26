@@ -5,9 +5,17 @@ import { tools } from '../agent.js';
 export class OpenAIProvider extends BaseProvider {
   constructor(config) {
     super(config);
+    
+    const extraHeaders = {};
+    if (this.config.baseURL?.includes('openrouter.ai')) {
+      extraHeaders['HTTP-Referer'] = 'https://github.com/JudahAragao/bimmo-cli';
+      extraHeaders['X-Title'] = 'bimmo-cli';
+    }
+
     this.client = new OpenAI({
       apiKey: this.config.apiKey,
-      baseURL: this.config.baseURL
+      baseURL: this.config.baseURL,
+      defaultHeaders: extraHeaders
     });
   }
 
@@ -29,7 +37,6 @@ export class OpenAIProvider extends BaseProvider {
   async sendMessage(messages) {
     const formattedMessages = this.formatMessages(messages);
     
-    // Converte tools do agent.js para o formato da OpenAI
     const openAiTools = tools.map(t => ({
       type: 'function',
       function: {
@@ -39,12 +46,19 @@ export class OpenAIProvider extends BaseProvider {
       }
     }));
 
-    const response = await this.client.chat.completions.create({
+    const options = {
       model: this.config.model,
       messages: formattedMessages,
-      tools: openAiTools,
-      tool_choice: 'auto'
-    });
+      temperature: 0.7
+    };
+
+    // Só envia tools se houver alguma definida para evitar erros em alguns provedores
+    if (openAiTools.length > 0) {
+      options.tools = openAiTools;
+      options.tool_choice = 'auto';
+    }
+
+    const response = await this.client.chat.completions.create(options);
 
     const message = response.choices[0].message;
 
@@ -65,10 +79,7 @@ export class OpenAIProvider extends BaseProvider {
         }
       }
 
-      // Adiciona a chamada da tool e o resultado ao histórico
       const nextMessages = [...formattedMessages, message, ...toolResults];
-      
-      // Chamada recursiva para processar a resposta final da IA com o resultado da tool
       return this.sendMessage(nextMessages);
     }
 

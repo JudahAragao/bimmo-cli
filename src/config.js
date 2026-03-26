@@ -10,7 +10,7 @@ const providers = {
   grok: { baseURL: 'https://api.x.ai/v1', defaultModel: 'grok-2-1212' },
   gemini: { baseURL: 'https://generativelanguage.googleapis.com/v1beta', defaultModel: 'gemini-2.0-flash' },
   ollama: { baseURL: 'http://localhost:11434/api', defaultModel: 'llama3.2' },
-  openrouter: { baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'google/gemini-2.0-flash-exp:free' },
+  openrouter: { baseURL: 'https://openrouter.ai/api/v1', defaultModel: 'google/gemini-2.0-flash-lite-preview-02-05:free' },
   deepseek: { baseURL: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
   zai: { baseURL: 'https://api.z.ai/v1', defaultModel: 'glm-4' }
 };
@@ -111,7 +111,6 @@ export async function configure() {
   profiles[answers.profileName] = newProfile;
   config.set('profiles', profiles);
   
-  // Define como ativo imediatamente
   config.set('provider', newProfile.provider);
   config.set('apiKey', newProfile.apiKey);
   config.set('model', newProfile.model);
@@ -127,7 +126,6 @@ export function getConfig() {
 
 export function updateActiveModel(newModel) {
   config.set('model', newModel);
-  // Também atualiza no perfil se houver um ativo
   const active = config.get('activeProfile');
   if (active) {
     const profiles = config.get('profiles');
