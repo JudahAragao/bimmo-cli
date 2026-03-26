@@ -13,6 +13,7 @@ import { getConfig, configure, updateActiveModel, switchProfile } from './config
 import { createProvider } from './providers/factory.js';
 import { getProjectContext } from './project-context.js';
 import { SwarmOrchestrator } from './orchestrator.js';
+import { editState } from './agent.js';
 
 marked.use(new TerminalRenderer({
   heading: chalk.hex('#c084fc').bold,
@@ -99,7 +100,9 @@ function getModeStyle() {
   const personaLabel = activePersona ? `[${activePersona.toUpperCase()}] ` : '';
   switch (currentMode) {
     case 'plan': return yellow.bold(`${personaLabel}[PLAN] `);
-    case 'edit': return chalk.red.bold(`${personaLabel}[EDIT] `);
+    case 'edit': 
+      const editSubMode = editState.autoAccept ? '(AUTO)' : '(MANUAL)';
+      return chalk.red.bold(`${personaLabel}[EDIT${editSubMode}] `);
     default: return lavender.bold(`${personaLabel}[CHAT] `);
   }
 }
@@ -185,7 +188,24 @@ export async function startInteractive() {
 
     if (cmd === '/chat') { currentMode = 'chat'; console.log(lavender('✓ Modo CHAT.\n')); continue; }
     if (cmd === '/plan') { currentMode = 'plan'; console.log(yellow('✓ Modo PLAN.\n')); continue; }
-    if (cmd === '/edit') { currentMode = 'edit'; console.log(chalk.red('⚠️  Modo EDIT.\n')); continue; }
+    
+    if (cmd === '/edit') { 
+      currentMode = 'edit'; 
+      console.log(chalk.red(`⚠️  Modo EDIT ativado (Sub-modo atual: ${editState.autoAccept ? 'AUTO' : 'MANUAL'}).\n`)); 
+      continue; 
+    }
+    if (cmd === '/edit auto') {
+      currentMode = 'edit';
+      editState.autoAccept = true;
+      console.log(chalk.red('⚠️  Modo EDIT (AUTO) ativado. Mudanças serão aplicadas sem perguntar.\n'));
+      continue;
+    }
+    if (cmd === '/edit manual') {
+      currentMode = 'edit';
+      editState.autoAccept = false;
+      console.log(chalk.red('⚠️  Modo EDIT (MANUAL) ativado. Pedirei permissão para cada mudança.\n'));
+      continue;
+    }
 
     if (cmd.startsWith('/switch ')) {
       const profileName = rawInput.split(' ')[1];
@@ -235,7 +255,9 @@ export async function startInteractive() {
     if (cmd === '/help') {
       console.log(gray(`
 Comandos de Modo:
-  /chat /plan /edit → Mudar modo de operação
+  /chat            → Modo conversa
+  /plan            → Modo planejamento
+  /edit [auto/manual] → Modo edição (padrão manual)
   /use [agente]    → Usar um Agente Especialista
   /use normal      → Voltar para o chat normal
   /swarm           → Rodar fluxos complexos
@@ -272,7 +294,6 @@ Gerenciamento:
       fs.writeFileSync(bimmoRcPath, JSON.stringify(initialConfig, null, 2));
       console.log(green(`\n✅ .bimmorc.json criado com sucesso.\n`));
       
-      // Recarrega o contexto para a conversa
       resetMessages();
       continue;
     }
@@ -319,7 +340,7 @@ Gerenciamento:
 
     let modeInstr = "";
     if (currentMode === 'plan') modeInstr = "\n[MODO PLAN] Apenas analise.";
-    else if (currentMode === 'edit') modeInstr = "\n[MODO EDIT] Aplique as mudanças agora.";
+    else if (currentMode === 'edit') modeInstr = `\n[MODO EDIT] Você tem permissão para usar ferramentas. (Auto-Accept: ${editState.autoAccept ? 'ON' : 'OFF'})`;
 
     const content = await processInput(rawInput);
     messages.push({ 
