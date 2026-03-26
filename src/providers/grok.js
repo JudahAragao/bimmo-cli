@@ -13,24 +13,23 @@ export class GrokProvider extends BaseProvider {
 
   formatMessages(messages) {
     return messages.map(msg => {
-      if (typeof msg.content === 'string') {
+      if (typeof msg.content === 'string' || msg.content === null) {
         return msg;
       }
       
-      const content = msg.content.map(part => {
-        if (part.type === 'text') {
-          return { type: 'text', text: part.text };
-        } else if (part.type === 'image') {
-          return {
+      if (Array.isArray(msg.content)) {
+        const content = msg.content.map(part => {
+          if (part.type === 'text') return { type: 'text', text: part.text };
+          if (part.type === 'image') return {
             type: 'image_url',
-            image_url: {
-              url: `data:${part.mimeType};base64,${part.data}`
-            }
+            image_url: { url: `data:${part.mimeType};base64,${part.data}` }
           };
-        }
-      });
+          return part;
+        });
+        return { ...msg, content };
+      }
 
-      return { ...msg, content };
+      return msg;
     });
   }
 

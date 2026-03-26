@@ -1,6 +1,6 @@
 {
   "name": "bimmo-cli",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "🌿 Plataforma de IA universal com modo Normal, Agentes Especialistas e Enxames (Swarms). Suporte a Auto-Edit, Contexto Inteligente e interrupção inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"

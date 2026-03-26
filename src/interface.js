@@ -142,7 +142,6 @@ export async function startInteractive() {
 
   console.log(lavender('👋 Olá! Estou pronto. No que posso ajudar?\n'));
 
-  // Handler Global de SIGINT para o modo ocioso (Idle)
   process.on('SIGINT', () => {
     exitCounter++;
     if (exitCounter === 1) {
@@ -173,7 +172,6 @@ export async function startInteractive() {
       ]);
       input = answers.input;
     } catch (e) {
-      // Inquirer joga erro no Ctrl+C se não for tratado
       continue;
     }
 
@@ -254,6 +252,31 @@ Gerenciamento:
 
     if (cmd === '/config') { await configure(); config = getConfig(); provider = createProvider(config); continue; }
 
+    if (cmd === '/init') {
+      const bimmoRcPath = path.join(process.cwd(), '.bimmorc.json');
+      if (fs.existsSync(bimmoRcPath)) {
+        const { overwrite } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'overwrite',
+          message: 'O arquivo .bimmorc.json já existe. Deseja sobrescrever?',
+          default: false
+        }]);
+        if (!overwrite) continue;
+      }
+      const initialConfig = {
+        projectName: path.basename(process.cwd()),
+        rules: ["Siga as convenções existentes.", "Prefira código modular."],
+        preferredTech: [],
+        ignorePatterns: ["node_modules", ".git"]
+      };
+      fs.writeFileSync(bimmoRcPath, JSON.stringify(initialConfig, null, 2));
+      console.log(green(`\n✅ .bimmorc.json criado com sucesso.\n`));
+      
+      // Recarrega o contexto para a conversa
+      resetMessages();
+      continue;
+    }
+
     if (cmd === '/swarm') {
       const agents = config.agents || {};
       const agentList = Object.keys(agents);
@@ -290,13 +313,7 @@ Gerenciamento:
     if (rawInput === '') continue;
 
     const controller = new AbortController();
-    
-    // Handler local para SIGINT durante o processamento da IA
-    const localInterruptHandler = () => {
-      controller.abort();
-    };
-
-    // Remove temporariamente o handler global de saída
+    const localInterruptHandler = () => controller.abort();
     process.removeAllListeners('SIGINT');
     process.on('SIGINT', localInterruptHandler);
 
@@ -327,13 +344,12 @@ Gerenciamento:
     } catch (err) {
       spinner.stop();
       if (controller.signal.aborted || err.name === 'AbortError') {
-        console.log(yellow('\n\n⚠️  Operação interrompida pelo usuário.\n'));
+        console.log(yellow('\n\n⚠️  Interrompido.\n'));
         messages.pop();
       } else {
         console.error(chalk.red('\n✖ Erro:') + ' ' + err.message + '\n');
       }
     } finally {
-      // Restaura o handler global de saída
       process.removeListener('SIGINT', localInterruptHandler);
       process.on('SIGINT', () => {
         exitCounter++;

@@ -21,16 +21,25 @@ export class OpenAIProvider extends BaseProvider {
 
   formatMessages(messages) {
     return messages.map(msg => {
-      if (typeof msg.content === 'string') return msg;
+      // Se content for string ou null (comum em tool calls), retorna como está
+      if (typeof msg.content === 'string' || msg.content === null) {
+        return msg;
+      }
       
-      const content = msg.content.map(part => {
-        if (part.type === 'text') return { type: 'text', text: part.text };
-        if (part.type === 'image') return {
-          type: 'image_url',
-          image_url: { url: `data:${part.mimeType};base64,${part.data}` }
-        };
-      });
-      return { ...msg, content };
+      // Se for um array (multimodal), processa as partes
+      if (Array.isArray(msg.content)) {
+        const content = msg.content.map(part => {
+          if (part.type === 'text') return { type: 'text', text: part.text };
+          if (part.type === 'image') return {
+            type: 'image_url',
+            image_url: { url: `data:${part.mimeType};base64,${part.data}` }
+          };
+          return part; // Mantém outras partes (como tool_result se houver)
+        });
+        return { ...msg, content };
+      }
+
+      return msg;
     });
   }
 
