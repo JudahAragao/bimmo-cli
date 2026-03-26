@@ -7,6 +7,7 @@ import ora from 'ora';
 import fs from 'fs';
 import path from 'path';
 import mime from 'mime-types';
+import readline from 'readline';
 
 import { getConfig, configure, updateActiveModel, switchProfile } from './config.js';
 import { createProvider } from './providers/factory.js';
@@ -111,7 +112,6 @@ export async function startInteractive() {
   let provider = createProvider(config);
   const messages = [];
 
-  // 1. Injeta o sistema de contexto inteligente do projeto
   const projectContext = getProjectContext();
   messages.push({ 
     role: 'system', 
@@ -127,6 +127,10 @@ export async function startInteractive() {
   console.log(lavender('─'.repeat(60)) + '\n');
 
   console.log(lavender('👋 Olá! Sou seu agente BIMMO. No que posso atuar?\n'));
+
+  // Habilita detecção de teclas para Esc
+  readline.emitKeypressEvents(process.stdin);
+  if (process.stdin.isTTY) process.stdin.setRawMode(true);
 
   while (true) {
     const modeIndicator = getModeStyle();
@@ -144,19 +148,18 @@ export async function startInteractive() {
 
     if (cmd === '/exit' || cmd === 'exit' || cmd === 'sair') {
       console.log(lavender('\n👋 BIMMO encerrando sessão. Até logo!\n'));
-      break;
+      process.exit(0);
     }
 
     if (cmd === '/chat') { currentMode = 'chat'; console.log(lavender('✓ Modo CHAT.\n')); continue; }
     if (cmd === '/plan') { currentMode = 'plan'; console.log(yellow('✓ Modo PLAN.\n')); continue; }
     if (cmd === '/edit') { currentMode = 'edit'; console.log(chalk.red('⚠️  Modo EDIT.\n')); continue; }
 
-    // /switch [perfil] -> Troca Perfil + Chave + Provedor + Modelo instantaneamente
     if (cmd.startsWith('/switch ')) {
       const profileName = rawInput.split(' ')[1];
       if (profileName && switchProfile(profileName)) {
-        config = getConfig(); // Atualiza config local
-        provider = createProvider(config); // Recria provedor com nova chave/url
+        config = getConfig();
+        provider = createProvider(config);
         console.log(green(`\n✓ Trocado para o perfil "${bold(profileName)}"!`));
         console.log(gray(`   IA: ${config.provider.toUpperCase()} | Modelo: ${config.model}\n`));
       } else {
@@ -165,7 +168,6 @@ export async function startInteractive() {
       continue;
     }
 
-    // /model [modelo] -> Troca apenas o modelo do Perfil atual
     if (cmd.startsWith('/model ')) {
       const newModel = rawInput.split(' ')[1];
       if (newModel) {
@@ -199,6 +201,8 @@ Comandos Disponíveis:
       continue;
     }
 
+    if (cmd === '/config') { await configure(); config = getConfig(); provider = createProvider(config); continue; }
+
     if (cmd === '/init') {
       const bimmoRcPath = path.join(process.cwd(), '.bimmorc.json');
       if (fs.existsSync(bimmoRcPath)) {
@@ -210,35 +214,19 @@ Comandos Disponíveis:
         }]);
         if (!overwrite) continue;
       }
-
       const initialConfig = {
         projectName: path.basename(process.cwd()),
-        rules: [
-          "Siga as convenções de código existentes.",
-          "Prefira código limpo e modular.",
-          "Sempre valide mudanças antes de aplicar no modo EDIT."
-        ],
+        rules: ["Siga as convenções existentes.", "Prefira código modular."],
         preferredTech: [],
-        architecture: "Não especificada",
-        ignorePatterns: ["node_modules", "dist", ".git"]
+        ignorePatterns: ["node_modules", ".git"]
       };
-
       fs.writeFileSync(bimmoRcPath, JSON.stringify(initialConfig, null, 2));
-      console.log(green(`\n✅ Arquivo .bimmorc.json criado com sucesso em: ${bold(bimmoRcPath)}\n`));
-      
-      // Recarrega o contexto para a conversa atual
-      messages.push({ 
-        role: 'system', 
-        content: `Novo contexto inicializado via /init:\n${JSON.stringify(initialConfig, null, 2)}` 
-      });
+      console.log(green(`\n✅ .bimmorc.json criado.\n`));
       continue;
     }
 
-    if (cmd === '/config') { await configure(); config = getConfig(); provider = createProvider(config); continue; }
-
     if (rawInput === '') continue;
 
-    // Injeção dinâmica de instruções de modo
     let modeInstr = "";
     if (currentMode === 'plan') modeInstr = "\n[MODO PLAN] Descreva e analise, mas NÃO altere arquivos.";
     else if (currentMode === 'edit') modeInstr = "\n[MODO EDIT] Você tem permissão para usar write_file e run_command AGORA.";
@@ -250,27 +238,48 @@ Comandos Disponíveis:
     });
 
     const spinner = ora({
-      text: lavender(`bimmo (${currentMode}) pensando...`),
+      text: lavender(`bimmo (${currentMode}) pensando... (Ctrl+C para interromper)`),
       color: currentMode === 'edit' ? 'red' : 'magenta'
     }).start();
 
+    // Setup de interrupção
+    const controller = new AbortController();
+    const interruptHandler = () => {
+      controller.abort();
+    };
+
+    const keypressHandler = (str, key) => {
+      if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
+        interruptHandler();
+      }
+    };
+
+    process.on('SIGINT', interruptHandler);
+    process.stdin.on('keypress', keypressHandler);
+
     try {
-      let responseText = await provider.sendMessage(messages);
+      let responseText = await provider.sendMessage(messages, { signal: controller.signal });
       spinner.stop();
 
-      // Limpa tags HTML básicas que alguns modelos retornam (ex: <p>, </p>)
       const cleanedText = responseText.replace(/<\/?[^>]+(>|$)/g, "");
-
       messages.push({ role: 'assistant', content: responseText });
 
       console.log('\n' + lavender('bimmo') + getModeStyle());
       console.log(lavender('─'.repeat(50)));
       console.log(marked(cleanedText));
       console.log(gray('─'.repeat(50)) + '\n');
-
     } catch (err) {
       spinner.stop();
-      console.error(chalk.red('✖ Erro Crítico:') + ' ' + err.message + '\n');
+      if (controller.signal.aborted || err.name === 'AbortError') {
+        console.log(yellow('\n\n⚠️  Operação interrompida pelo usuário.\n'));
+        // Remove a última mensagem do usuário do histórico para não poluir se foi cancelado
+        messages.pop();
+      } else {
+        console.error(chalk.red('\n✖ Erro Crítico:') + ' ' + err.message + '\n');
+      }
+    } finally {
+      process.off('SIGINT', interruptHandler);
+      process.stdin.off('keypress', keypressHandler);
     }
   }
 }

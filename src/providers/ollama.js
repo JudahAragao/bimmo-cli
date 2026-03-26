@@ -13,7 +13,7 @@ export class OllamaProvider extends BaseProvider {
 
       const images = msg.content
         .filter(part => part.type === 'image')
-        .map(part => part.data); // Ollama espera apenas a string base64
+        .map(part => part.data);
 
       const text = msg.content
         .filter(part => part.type === 'text')
@@ -28,7 +28,7 @@ export class OllamaProvider extends BaseProvider {
     });
   }
 
-  async sendMessage(messages) {
+  async sendMessage(messages, options = {}) {
     const formattedMessages = this.formatMessages(messages);
 
     const response = await this.client.chat({
@@ -38,7 +38,7 @@ export class OllamaProvider extends BaseProvider {
       options: {
         temperature: 0.7,
       }
-    });
+    }, { signal: options.signal });
 
     const text = response.message?.content;
 

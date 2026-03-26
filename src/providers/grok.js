@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { BaseProvider } from './base.js';
+import { tools } from '../agent.js';
 
 export class GrokProvider extends BaseProvider {
   constructor(config) {
@@ -33,14 +34,14 @@ export class GrokProvider extends BaseProvider {
     });
   }
 
-  async sendMessage(messages) {
+  async sendMessage(messages, options = {}) {
     const formattedMessages = this.formatMessages(messages);
     
     const response = await this.client.chat.completions.create({
       model: this.config.model,
       messages: formattedMessages,
       temperature: 0.7
-    });
+    }, { signal: options.signal });
 
     return response.choices[0].message.content;
   }

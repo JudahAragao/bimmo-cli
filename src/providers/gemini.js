@@ -18,7 +18,7 @@ export class GeminiProvider extends BaseProvider {
     });
   }
 
-  async sendMessage(messages) {
+  async sendMessage(messages, options = {}) {
     const systemPrompt = messages.find(m => m.role === 'system')?.content;
     const history = messages
       .filter(m => m.role !== 'system')
@@ -30,7 +30,6 @@ export class GeminiProvider extends BaseProvider {
 
     const lastMessageContent = this.formatContent(messages[messages.length - 1].content);
 
-    // Converte tools do agent.js para o formato do Gemini
     const geminiTools = tools.map(t => ({
       functionDeclarations: [{
         name: t.name,
@@ -53,19 +52,19 @@ export class GeminiProvider extends BaseProvider {
     const result = await chat.sendMessage(lastMessageContent);
     const response = await result.response;
     
-    // Processamento de Tool Calls no Gemini
     const call = response.candidates[0].content.parts.find(p => p.functionCall);
     if (call) {
+      if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
+      
       const tool = tools.find(t => t.name === call.functionCall.name);
       if (tool) {
         console.log(`\n  ${tool.name === 'search_internet' ? '🌐' : '🛠️'}  Executando: ${tool.name}...`);
-        const result = await tool.execute(call.functionCall.args);
+        const toolResult = await tool.execute(call.functionCall.args);
         
-        // No Gemini, enviamos o resultado de volta para o chat
         const resultResponse = await chat.sendMessage([{
           functionResponse: {
             name: call.functionCall.name,
-            response: { content: result }
+            response: { content: toolResult }
           }
         }]);
         return resultResponse.response.text();

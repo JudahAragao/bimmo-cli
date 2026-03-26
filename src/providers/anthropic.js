@@ -21,7 +21,7 @@ export class AnthropicProvider extends BaseProvider {
     });
   }
 
-  async sendMessage(messages) {
+  async sendMessage(messages, options = {}) {
     const systemMessage = messages.find(m => m.role === 'system');
     const userMessages = messages
       .filter(m => m.role !== 'system')
@@ -30,7 +30,6 @@ export class AnthropicProvider extends BaseProvider {
         content: this.formatContent(m.content)
       }));
 
-    // Converte tools do agent.js para o formato da Anthropic
     const anthropicTools = tools.map(t => ({
       name: t.name,
       description: t.description,
@@ -44,17 +43,18 @@ export class AnthropicProvider extends BaseProvider {
       messages: userMessages,
       tools: anthropicTools,
       temperature: 0.7
-    });
+    }, { signal: options.signal });
 
     if (response.stop_reason === 'tool_use') {
       const toolUse = response.content.find(p => p.type === 'tool_use');
       const tool = tools.find(t => t.name === toolUse.name);
       
       if (tool) {
+        if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
+        
         console.log(`\n  ${tool.name === 'search_internet' ? '🌐' : '🛠️'}  Executando: ${tool.name}...`);
         const result = await tool.execute(toolUse.input);
         
-        // Adiciona a resposta da IA e o resultado da tool ao histórico
         const nextMessages = [
           ...messages,
           { role: 'assistant', content: response.content },
@@ -68,7 +68,7 @@ export class AnthropicProvider extends BaseProvider {
           }
         ];
         
-        return this.sendMessage(nextMessages);
+        return this.sendMessage(nextMessages, options);
       }
     }
 

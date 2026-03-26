@@ -3,7 +3,7 @@ export class BaseProvider {
     this.config = config;
   }
 
-  async sendMessage(messages) {
+  async sendMessage(messages, options = {}) {
     throw new Error('Método sendMessage deve ser implementado');
   }
 }
