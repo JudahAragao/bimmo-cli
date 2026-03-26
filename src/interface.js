@@ -255,14 +255,19 @@ Comandos Disponíveis:
     }).start();
 
     try {
-      const responseText = await provider.sendMessage(messages);
+      let responseText = await provider.sendMessage(messages);
       spinner.stop();
+
+      // Limpa tags HTML básicas que alguns modelos retornam (ex: <p>, </p>)
+      const cleanedText = responseText.replace(/<\/?[^>]+(>|$)/g, "");
+
       messages.push({ role: 'assistant', content: responseText });
 
       console.log('\n' + lavender('bimmo') + getModeStyle());
       console.log(lavender('─'.repeat(50)));
-      console.log(marked(responseText));
+      console.log(marked(cleanedText));
       console.log(gray('─'.repeat(50)) + '\n');
+
     } catch (err) {
       spinner.stop();
       console.error(chalk.red('✖ Erro Crítico:') + ' ' + err.message + '\n');
