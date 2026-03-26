@@ -8,12 +8,18 @@ import fs from 'fs';
 import path from 'path';
 import mime from 'mime-types';
 import readline from 'readline';
+import { fileURLToPath } from 'url';
 
 import { getConfig, configure, updateActiveModel, switchProfile } from './config.js';
 import { createProvider } from './providers/factory.js';
 import { getProjectContext } from './project-context.js';
 import { SwarmOrchestrator } from './orchestrator.js';
 import { editState } from './agent.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
+const version = pkg.version;
 
 marked.use(new TerminalRenderer({
   heading: chalk.hex('#c084fc').bold,
@@ -137,7 +143,7 @@ export async function startInteractive() {
 
   console.clear();
   console.log(lavender(figlet.textSync('bimmo')));
-  console.log(lavender('─'.repeat(60)));
+  console.log(lavender(` v${version} `.padStart(60, '─')));
   console.log(green(`   Perfil: ${bold(config.activeProfile || 'Padrão')} • IA: ${bold(config.provider.toUpperCase())}`));
   console.log(green(`   Modelo: ${bold(config.model)}`));
   console.log(gray('   /chat | /plan | /edit | /swarm | /use [agente] | /help'));
@@ -179,6 +185,9 @@ export async function startInteractive() {
     } catch (e) {
       continue;
     }
+
+    // Mostra o diretório atual logo abaixo do input do usuário
+    console.log(gray(` 📁 ${process.cwd()}`));
 
     const rawInput = input.trim();
     const cmd = rawInput.toLowerCase();
