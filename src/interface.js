@@ -25,8 +25,10 @@ const gray = chalk.gray;
 const bold = chalk.bold;
 const yellow = chalk.yellow;
 
-let currentMode = 'chat'; // 'chat', 'plan', 'edit'
-let activePersona = null; // null = Modo Normal, ou nome do Agente
+let currentMode = 'chat'; 
+let activePersona = null; 
+let exitCounter = 0;
+let exitTimer = null;
 
 async function processInput(input) {
   const parts = input.split(' ');
@@ -140,19 +142,40 @@ export async function startInteractive() {
 
   console.log(lavender('👋 Olá! Estou pronto. No que posso ajudar?\n'));
 
+  // Handler Global de SIGINT para o modo ocioso (Idle)
+  process.on('SIGINT', () => {
+    exitCounter++;
+    if (exitCounter === 1) {
+      console.log(gray('\n(Pressione Ctrl+C novamente para sair)'));
+      if (exitTimer) clearTimeout(exitTimer);
+      exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
+    } else {
+      console.log(lavender('\n👋 BIMMO encerrando sessão. Até logo!\n'));
+      process.exit(0);
+    }
+  });
+
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
 
   while (true) {
     const modeIndicator = getModeStyle();
-    const { input } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'input',
-        message: modeIndicator + green('Você'),
-        prefix: '→',
-      }
-    ]);
+    let input;
+    
+    try {
+      const answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'input',
+          message: modeIndicator + green('Você'),
+          prefix: '→',
+        }
+      ]);
+      input = answers.input;
+    } catch (e) {
+      // Inquirer joga erro no Ctrl+C se não for tratado
+      continue;
+    }
 
     const rawInput = input.trim();
     const cmd = rawInput.toLowerCase();
@@ -190,7 +213,6 @@ export async function startInteractive() {
       if (agents[agentName]) {
         activePersona = agentName;
         const agent = agents[agentName];
-        // Opcionalmente troca o perfil para o do agente
         if (switchProfile(agent.profile)) {
           config = getConfig();
           provider = createProvider(config);
@@ -216,15 +238,15 @@ export async function startInteractive() {
       console.log(gray(`
 Comandos de Modo:
   /chat /plan /edit → Mudar modo de operação
-  /use [agente]    → Usar um Agente Especialista (ex: /use Arquiteto)
+  /use [agente]    → Usar um Agente Especialista
   /use normal      → Voltar para o chat normal
-  /swarm           → Rodar fluxos complexos com múltiplos agentes
+  /swarm           → Rodar fluxos complexos
 
 Gerenciamento:
   /switch [nome]   → Mudar perfil de IA completo
-  /model [nome]    → Mudar apenas o modelo da IA atual
-  /config          → Criar/Editar Perfis e Agentes
-  /init            → Inicializar .bimmorc.json no projeto
+  /model [nome]    → Mudar modelo atual
+  /config          → Perfis e Agentes
+  /init            → Inicializar .bimmorc.json
   @arquivo         → Ler arquivo ou imagem
       `));
       continue;
@@ -268,8 +290,15 @@ Gerenciamento:
     if (rawInput === '') continue;
 
     const controller = new AbortController();
-    const interruptHandler = () => controller.abort();
-    process.on('SIGINT', interruptHandler);
+    
+    // Handler local para SIGINT durante o processamento da IA
+    const localInterruptHandler = () => {
+      controller.abort();
+    };
+
+    // Remove temporariamente o handler global de saída
+    process.removeAllListeners('SIGINT');
+    process.on('SIGINT', localInterruptHandler);
 
     let modeInstr = "";
     if (currentMode === 'plan') modeInstr = "\n[MODO PLAN] Apenas analise.";
@@ -282,7 +311,7 @@ Gerenciamento:
     });
 
     const spinner = ora({
-      text: lavender(`bimmo pensando... (Ctrl+C para parar)`),
+      text: lavender(`bimmo pensando... (Ctrl+C para interromper)`),
       color: currentMode === 'edit' ? 'red' : 'magenta'
     }).start();
 
@@ -298,13 +327,25 @@ Gerenciamento:
     } catch (err) {
       spinner.stop();
       if (controller.signal.aborted || err.name === 'AbortError') {
-        console.log(yellow('\n\n⚠️  Interrompido.\n'));
+        console.log(yellow('\n\n⚠️  Operação interrompida pelo usuário.\n'));
         messages.pop();
       } else {
         console.error(chalk.red('\n✖ Erro:') + ' ' + err.message + '\n');
       }
     } finally {
-      process.off('SIGINT', interruptHandler);
+      // Restaura o handler global de saída
+      process.removeListener('SIGINT', localInterruptHandler);
+      process.on('SIGINT', () => {
+        exitCounter++;
+        if (exitCounter === 1) {
+          console.log(gray('\n(Pressione Ctrl+C novamente para sair)'));
+          if (exitTimer) clearTimeout(exitTimer);
+          exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
+        } else {
+          console.log(lavender('\n👋 BIMMO encerrando sessão. Até logo!\n'));
+          process.exit(0);
+        }
+      });
     }
   }
 }
