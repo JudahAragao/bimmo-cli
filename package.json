@@ -1,7 +1,7 @@
 {
   "name": "bimmo-cli",
-  "version": "2.0.1",
-  "description": "🌿 Plataforma de Orquestração de Agentes IA (Swarms) com interface verde/lavanda, modo Auto-Edit e contexto inteligente.",
+  "version": "2.0.2",
+  "description": "🌿 Plataforma de IA universal com modo Normal, Agentes Especialistas e Enxames (Swarms). Suporte a Auto-Edit e Contexto Inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
   },

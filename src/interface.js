@@ -26,6 +26,7 @@ const bold = chalk.bold;
 const yellow = chalk.yellow;
 
 let currentMode = 'chat'; // 'chat', 'plan', 'edit'
+let activePersona = null; // null = Modo Normal, ou nome do Agente
 
 async function processInput(input) {
   const parts = input.split(' ');
@@ -93,10 +94,11 @@ async function processInput(input) {
 }
 
 function getModeStyle() {
+  const personaLabel = activePersona ? `[${activePersona.toUpperCase()}] ` : '';
   switch (currentMode) {
-    case 'plan': return yellow.bold(' [PLAN] ');
-    case 'edit': return chalk.red.bold(' [EDIT] ');
-    default: return lavender.bold(' [CHAT] ');
+    case 'plan': return yellow.bold(`${personaLabel}[PLAN] `);
+    case 'edit': return chalk.red.bold(`${personaLabel}[EDIT] `);
+    default: return lavender.bold(`${personaLabel}[CHAT] `);
   }
 }
 
@@ -112,23 +114,31 @@ export async function startInteractive() {
 
   let provider = createProvider(config);
   const orchestrator = new SwarmOrchestrator(config);
-  const messages = [];
+  let messages = [];
 
-  const projectContext = getProjectContext();
-  messages.push({ 
-    role: 'system', 
-    content: projectContext 
-  });
+  const resetMessages = () => {
+    messages = [];
+    const projectContext = getProjectContext();
+    messages.push({ role: 'system', content: projectContext });
+    if (activePersona) {
+      const agent = (config.agents || {})[activePersona];
+      if (agent) {
+        messages.push({ role: 'system', content: `Sua persona atual é: ${agent.name}. Sua tarefa: ${agent.role}` });
+      }
+    }
+  };
+
+  resetMessages();
 
   console.clear();
   console.log(lavender(figlet.textSync('bimmo')));
   console.log(lavender('─'.repeat(60)));
-  console.log(green(`   Perfil Ativo: ${bold(config.activeProfile || 'Padrão')} (${config.provider.toUpperCase()})`));
+  console.log(green(`   Perfil: ${bold(config.activeProfile || 'Padrão')} • IA: ${bold(config.provider.toUpperCase())}`));
   console.log(green(`   Modelo: ${bold(config.model)}`));
-  console.log(gray('   /chat | /plan | /edit | /swarm | /switch [perfil] | /model [novo] | /help'));
+  console.log(gray('   /chat | /plan | /edit | /swarm | /use [agente] | /help'));
   console.log(lavender('─'.repeat(60)) + '\n');
 
-  console.log(lavender('👋 Olá! Sou seu agente BIMMO. No que posso atuar?\n'));
+  console.log(lavender('👋 Olá! Estou pronto. No que posso ajudar?\n'));
 
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
@@ -161,28 +171,42 @@ export async function startInteractive() {
       if (profileName && switchProfile(profileName)) {
         config = getConfig();
         provider = createProvider(config);
-        console.log(green(`\n✓ Trocado para o perfil "${bold(profileName)}"!`));
-        console.log(gray(`   IA: ${config.provider.toUpperCase()} | Modelo: ${config.model}\n`));
-      } else {
-        console.log(chalk.red(`\n✖ Perfil "${profileName}" não encontrado.\n`));
+        console.log(green(`\n✓ Perfil "${bold(profileName)}" ativado!`));
+        continue;
       }
+      console.log(chalk.red(`\n✖ Perfil não encontrado.\n`));
       continue;
     }
 
-    if (cmd.startsWith('/model ')) {
-      const newModel = rawInput.split(' ')[1];
-      if (newModel) {
-        updateActiveModel(newModel);
-        config.model = newModel;
-        provider = createProvider(config);
-        console.log(green(`\n✓ Modelo atualizado para: ${bold(newModel)}\n`));
+    if (cmd.startsWith('/use ')) {
+      const agentName = rawInput.split(' ')[1];
+      const agents = config.agents || {};
+      if (agentName === 'normal' || agentName === 'default') {
+        activePersona = null;
+        console.log(lavender(`\n✓ Voltando para o Modo Normal.\n`));
+        resetMessages();
+        continue;
+      }
+      if (agents[agentName]) {
+        activePersona = agentName;
+        const agent = agents[agentName];
+        // Opcionalmente troca o perfil para o do agente
+        if (switchProfile(agent.profile)) {
+          config = getConfig();
+          provider = createProvider(config);
+        }
+        currentMode = agent.mode || 'chat';
+        console.log(green(`\n✓ Agora você está falando com o Agente: ${bold(agentName)}`));
+        console.log(gray(`   Task: ${agent.role.substring(0, 100)}...\n`));
+        resetMessages();
+      } else {
+        console.log(chalk.red(`\n✖ Agente "${agentName}" não encontrado.\n`));
       }
       continue;
     }
 
     if (cmd === '/clear') {
-      messages.length = 0;
-      messages.push({ role: 'system', content: getProjectContext() });
+      resetMessages();
       console.clear();
       console.log(lavender('✓ Histórico limpo, contexto preservado.\n'));
       continue;
@@ -190,14 +214,18 @@ export async function startInteractive() {
 
     if (cmd === '/help') {
       console.log(gray(`
-Comandos Disponíveis:
+Comandos de Modo:
   /chat /plan /edit → Mudar modo de operação
-  /switch [nome]   → Mudar PERFIL (IA completa)
-  /model [nome]    → Mudar apenas o MODELO atual
-  /swarm           → Configurar e rodar enxames de agentes
-  /config          → Gerenciar perfis e agentes
-  /init            → Inicializar .bimmorc.json
-  @caminho         → Anexar arquivos ou imagens
+  /use [agente]    → Usar um Agente Especialista (ex: /use Arquiteto)
+  /use normal      → Voltar para o chat normal
+  /swarm           → Rodar fluxos complexos com múltiplos agentes
+
+Gerenciamento:
+  /switch [nome]   → Mudar perfil de IA completo
+  /model [nome]    → Mudar apenas o modelo da IA atual
+  /config          → Criar/Editar Perfis e Agentes
+  /init            → Inicializar .bimmorc.json no projeto
+  @arquivo         → Ler arquivo ou imagem
       `));
       continue;
     }
@@ -207,56 +235,32 @@ Comandos Disponíveis:
     if (cmd === '/swarm') {
       const agents = config.agents || {};
       const agentList = Object.keys(agents);
-
       if (agentList.length < 2) {
-        console.log(chalk.yellow('\nVocê precisa de pelo menos 2 Agentes configurados para rodar um Enxame.\nUse /config para criar Agentes.\n'));
+        console.log(chalk.yellow('\nCrie pelo menos 2 Agentes em /config primeiro.\n'));
         continue;
       }
-
       const { swarmAction } = await inquirer.prompt([{
         type: 'list',
         name: 'swarmAction',
-        message: 'Ação de Enxame:',
-        choices: ['Rodar Enxame Sequencial', 'Rodar Enxame Hierárquico', 'Voltar']
+        message: 'Tipo de Enxame:',
+        choices: ['Sequencial (A → B)', 'Hierárquico (Líder + Workers)', 'Voltar']
       }]);
-
       if (swarmAction === 'Voltar') continue;
-
-      const { goal } = await inquirer.prompt([{ type: 'input', name: 'goal', message: 'Qual o objetivo final deste enxame?' }]);
-
-      if (swarmAction === 'Rodar Enxame Sequencial') {
-        const { selectedAgents } = await inquirer.prompt([{
-          type: 'checkbox',
-          name: 'selectedAgents',
-          message: 'Selecione os agentes e a ordem (mínimo 2):',
-          choices: agentList
-        }]);
-
-        if (selectedAgents.length < 2) {
-          console.log(chalk.red('\nSelecione pelo menos 2 agentes.\n'));
-          continue;
+      const { goal } = await inquirer.prompt([{ type: 'input', name: 'goal', message: 'Objetivo do enxame:' }]);
+      
+      try {
+        let result;
+        if (swarmAction.includes('Sequencial')) {
+          const { selectedAgents } = await inquirer.prompt([{ type: 'checkbox', name: 'selectedAgents', message: 'Ordem dos agentes:', choices: agentList }]);
+          result = await orchestrator.runSequential(selectedAgents, goal);
+        } else {
+          const { manager } = await inquirer.prompt([{ type: 'list', name: 'manager', message: 'Líder:', choices: agentList }]);
+          const { workers } = await inquirer.prompt([{ type: 'checkbox', name: 'workers', message: 'Workers:', choices: agentList.filter(a => a !== manager) }]);
+          result = await orchestrator.runHierarchical(manager, workers, goal);
         }
-
-        try {
-          const finalResult = await orchestrator.runSequential(selectedAgents, goal);
-          console.log(lavender('\n=== RESULTADO FINAL DO ENXAME ===\n'));
-          console.log(marked(finalResult));
-        } catch (e) {
-          console.error(chalk.red(`\nErro no Enxame: ${e.message}`));
-        }
-      }
-
-      if (swarmAction === 'Rodar Enxame Hierárquico') {
-        const { manager } = await inquirer.prompt([{ type: 'list', name: 'manager', message: 'Selecione o Agente Líder (Manager):', choices: agentList }]);
-        const { workers } = await inquirer.prompt([{ type: 'checkbox', name: 'workers', message: 'Selecione os Workers:', choices: agentList.filter(a => a !== manager) }]);
-
-        try {
-          const finalResult = await orchestrator.runHierarchical(manager, workers, goal);
-          console.log(lavender('\n=== RESULTADO FINAL DO ENXAME ===\n'));
-          console.log(marked(finalResult));
-        } catch (e) {
-          console.error(chalk.red(`\nErro no Enxame: ${e.message}`));
-        }
+        console.log(lavender('\n=== RESULTADO FINAL ===\n') + marked(result));
+      } catch (e) {
+        console.error(chalk.red(`\nErro: ${e.message}`));
       }
       continue;
     }
@@ -265,13 +269,11 @@ Comandos Disponíveis:
 
     const controller = new AbortController();
     const interruptHandler = () => controller.abort();
-    const keypressHandler = (str, key) => { if (key.name === 'escape' || (key.ctrl && key.name === 'c')) interruptHandler(); };
     process.on('SIGINT', interruptHandler);
-    process.stdin.on('keypress', keypressHandler);
 
     let modeInstr = "";
-    if (currentMode === 'plan') modeInstr = "\n[MODO PLAN] Descreva e analise, mas NÃO altere arquivos.";
-    else if (currentMode === 'edit') modeInstr = "\n[MODO EDIT] Você tem permissão para usar write_file e run_command AGORA.";
+    if (currentMode === 'plan') modeInstr = "\n[MODO PLAN] Apenas analise.";
+    else if (currentMode === 'edit') modeInstr = "\n[MODO EDIT] Aplique as mudanças agora.";
 
     const content = await processInput(rawInput);
     messages.push({ 
@@ -280,7 +282,7 @@ Comandos Disponíveis:
     });
 
     const spinner = ora({
-      text: lavender(`bimmo (${currentMode}) pensando... (Ctrl+C para interromper)`),
+      text: lavender(`bimmo pensando... (Ctrl+C para parar)`),
       color: currentMode === 'edit' ? 'red' : 'magenta'
     }).start();
 
@@ -296,14 +298,13 @@ Comandos Disponíveis:
     } catch (err) {
       spinner.stop();
       if (controller.signal.aborted || err.name === 'AbortError') {
-        console.log(yellow('\n\n⚠️  Operação interrompida pelo usuário.\n'));
+        console.log(yellow('\n\n⚠️  Interrompido.\n'));
         messages.pop();
       } else {
-        console.error(chalk.red('\n✖ Erro Crítico:') + ' ' + err.message + '\n');
+        console.error(chalk.red('\n✖ Erro:') + ' ' + err.message + '\n');
       }
     } finally {
       process.off('SIGINT', interruptHandler);
-      process.stdin.off('keypress', keypressHandler);
     }
   }
 }
