@@ -102,7 +102,7 @@ export async function startInteractive() {
   let config = getConfig();
 
   if (!config.provider || !config.apiKey) {
-    console.log(lavender(figlet.textSync('bimmo', { font: 'slant' })));
+    console.log(lavender(figlet.textSync('bimmo')));
     console.log(gray('\nBem-vindo! Vamos configurar seus perfis de IA.\n'));
     await configure(); 
     return startInteractive();
@@ -119,7 +119,7 @@ export async function startInteractive() {
   });
 
   console.clear();
-  console.log(lavender(figlet.textSync('bimmo', { font: 'small' })));
+  console.log(lavender(figlet.textSync('bimmo')));
   console.log(lavender('─'.repeat(60)));
   console.log(green(`   Perfil Ativo: ${bold(config.activeProfile || 'Padrão')} (${config.provider.toUpperCase()})`));
   console.log(green(`   Modelo: ${bold(config.model)}`));
