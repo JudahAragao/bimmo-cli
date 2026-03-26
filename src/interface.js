@@ -21,11 +21,17 @@ const __dirname = path.dirname(__filename);
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
 const version = pkg.version;
 
-// Configuração do renderizador
+// Configuração do renderizador - Forçamos o escape de HTML para garantir que tags não apareçam
 marked.use(new TerminalRenderer({
   heading: chalk.hex('#c084fc').bold,
   code: chalk.hex('#00ff9d'),
 }));
+
+marked.setOptions({
+  sanitize: true, // Depreciado mas ajuda em versões antigas
+  headerIds: false,
+  mangle: false
+});
 
 const green = chalk.hex('#00ff9d');
 const lavender = chalk.hex('#c084fc');
@@ -98,21 +104,27 @@ function getModeStyle() {
 }
 
 /**
- * LIMPEZA BRUTA DE HTML
- * Remove tags como <p>, <br>, <div> e qualquer outra tag que venha da IA.
+ * LIMPEZA ABSOLUTA DE HTML
+ * Remove tags HTML antes da renderização Markdown.
  */
 function cleanAIResponse(text) {
   if (!text) return "";
-  return text
-    .replace(/<br\s*\/?>/gi, '\n')      // <br> vira nova linha
-    .replace(/<\/p>/gi, '\n\n')         // </p> vira duas novas linhas
-    .replace(/<\/div>/gi, '\n')         // </div> vira nova linha
-    .replace(/<[^>]*>?/gm, '')          // REMOVE QUALQUER TAG RESTANTE (Regex robusta)
-    .replace(/&nbsp;/g, ' ')            // Limpa espaços HTML
-    .replace(/&lt;/g, '<')              // Desescapa <
-    .replace(/&gt;/g, '>')              // Desescapa >
-    .replace(/&amp;/g, '&')             // Desescapa &
-    .trim();
+  
+  let cleaned = text
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<li>/gi, '* ')
+    .replace(/<\/li>/gi, '\n');
+
+  // Regex extremamente agressiva para remover qualquer tag restante
+  cleaned = cleaned.replace(/<[^>]*>?/gm, '');
+
+  // Decodifica entidades comuns
+  const entities = {
+    '&nbsp;': ' ', '&lt;': '<', '&gt;': '>', '&amp;': '&', '&quot;': '"', '&apos;': "'"
+  };
+  return cleaned.replace(/&[a-z0-9#]+;/gi, (match) => entities[match] || match).trim();
 }
 
 export async function startInteractive() {
@@ -179,12 +191,32 @@ export async function startInteractive() {
     const rawInput = input.trim();
     const cmd = rawInput.toLowerCase();
 
-    if (cmd === '/exit' || cmd === 'exit' || cmd === 'sair') { console.log(lavender('\n👋 BIMMO encerrando sessão. Até logo!\n')); process.exit(0); }
+    // COMANDOS CLI (Tratados antes de enviar para IA)
+    if (cmd === '/exit' || cmd === 'exit' || cmd === 'sair') { process.exit(0); }
+    
     if (cmd === '/chat') { currentMode = 'chat'; console.log(lavender('✓ Modo CHAT.\n')); continue; }
     if (cmd === '/plan') { currentMode = 'plan'; console.log(yellow('✓ Modo PLAN.\n')); continue; }
+    
     if (cmd === '/edit') { currentMode = 'edit'; console.log(chalk.red(`⚠️  Modo EDIT ativado.\n`)); continue; }
     if (cmd === '/edit auto') { currentMode = 'edit'; editState.autoAccept = true; console.log(chalk.red('⚠️  Modo EDIT (AUTO) ativado.\n')); continue; }
     if (cmd === '/edit manual') { currentMode = 'edit'; editState.autoAccept = false; console.log(chalk.red('⚠️  Modo EDIT (MANUAL) ativado.\n')); continue; }
+
+    if (cmd === '/init') {
+      const bimmoRcPath = path.join(process.cwd(), '.bimmorc.json');
+      if (fs.existsSync(bimmoRcPath)) {
+        const { overwrite } = await inquirer.prompt([{ type: 'confirm', name: 'overwrite', message: 'O arquivo .bimmorc.json já existe. Sobrescrever?', default: false }]);
+        if (!overwrite) continue;
+      }
+      const initialConfig = {
+        projectName: path.basename(process.cwd()),
+        rules: ["Siga as convenções existentes.", "Prefira código modular."],
+        ignorePatterns: ["node_modules", ".git"]
+      };
+      fs.writeFileSync(bimmoRcPath, JSON.stringify(initialConfig, null, 2));
+      console.log(green(`\n✅ .bimmorc.json criado com sucesso.\n`));
+      resetMessages();
+      continue;
+    }
 
     if (cmd.startsWith('/switch ')) {
       const profileName = rawInput.split(' ')[1];
@@ -199,28 +231,22 @@ export async function startInteractive() {
     if (cmd.startsWith('/use ')) {
       const agentName = rawInput.split(' ')[1];
       const agents = config.agents || {};
-      if (agentName === 'normal' || agentName === 'default') { activePersona = null; console.log(lavender(`\n✓ Voltando para o Modo Normal.\n`)); resetMessages(); continue; }
+      if (agentName === 'normal' || agentName === 'default') { activePersona = null; resetMessages(); continue; }
       if (agents[agentName]) {
         activePersona = agentName;
         const agent = agents[agentName];
         if (switchProfile(agent.profile)) { config = getConfig(); provider = createProvider(config); }
         currentMode = agent.mode || 'chat';
-        console.log(green(`\n✓ Agora você está falando com o Agente: ${bold(agentName)}`));
+        console.log(green(`\n✓ Ativado Agente: ${bold(agentName)}`));
         resetMessages();
-      } else { console.log(chalk.red(`\n✖ Agente "${agentName}" não encontrado.\n`)); }
+      } else { console.log(chalk.red(`\n✖ Agente não encontrado.\n`)); }
       continue;
     }
 
-    if (cmd === '/clear') { resetMessages(); console.clear(); console.log(lavender('✓ Histórico limpo, contexto preservado.\n')); continue; }
+    if (cmd === '/clear') { resetMessages(); console.clear(); continue; }
 
     if (cmd === '/help') {
-      console.log(gray(`
-Comandos:
-  /chat /plan /edit [auto/manual] → Mudar modo
-  /use [agente] | /use normal    → Usar Agentes
-  /switch [nome] | /model [nome] → Mudar IA/Modelo
-  /config | /init | @arquivo     → Configurações
-      `));
+      console.log(gray(`\nComandos:\n /chat | /plan | /edit [auto/manual] | /init\n /switch [nome] | /model [nome] | /use [agente]\n /config | /clear | @arquivo\n`));
       continue;
     }
 
@@ -228,6 +254,7 @@ Comandos:
 
     if (rawInput === '') continue;
 
+    // Enviar para a IA
     const controller = new AbortController();
     const localInterruptHandler = () => controller.abort();
     process.removeListener('SIGINT', globalSigIntHandler);
@@ -246,18 +273,21 @@ Comandos:
       let responseText = await provider.sendMessage(messages, { signal: controller.signal });
       spinner.stop();
 
-      // EXECUTA LIMPEZA BRUTA
       const cleanedText = cleanAIResponse(responseText);
-
       messages.push({ role: 'assistant', content: responseText });
+
       console.log('\n' + lavender('bimmo ') + getModeStyle());
       console.log(lavender('─'.repeat(50)));
       console.log(marked(cleanedText));
       console.log(gray('─'.repeat(50)) + '\n');
     } catch (err) {
       spinner.stop();
-      if (controller.signal.aborted || err.name === 'AbortError') { console.log(yellow('\n\n⚠️  Interrompido.\n')); messages.pop(); }
-      else { console.error(chalk.red('\n✖ Erro:') + ' ' + err.message + '\n'); }
+      if (controller.signal.aborted || err.name === 'AbortError') {
+        console.log(yellow('\n⚠️  Interrompido.\n'));
+        messages.pop();
+      } else {
+        console.error(chalk.red('\n✖ Erro:') + ' ' + err.message + '\n');
+      }
     } finally {
       process.removeListener('SIGINT', localInterruptHandler);
       process.on('SIGINT', globalSigIntHandler);
