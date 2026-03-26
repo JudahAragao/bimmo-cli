@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// Silencia o aviso de depreciação do punycode que polui o terminal em versões novas do Node
+process.removeAllListeners('warning');
+
 import { program } from 'commander';
 import { startInteractive } from '../src/interface.js';
 import { configure } from '../src/config.js';
@@ -7,13 +10,13 @@ import { configure } from '../src/config.js';
 program
   .name('bimmo')
   .description('bimmo — Sua IA universal no terminal (verde & lavanda)')
-  .version('1.1.0');
+  .version('1.2.4');
 
 program
   .command('config')
   .description('Configurar provedor e chave de API')
   .action(configure);
 
-program.action(startInteractive); // ao digitar só "bimmo" entra no chat
+program.action(startInteractive);
 
 program.parse();

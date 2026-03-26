@@ -1,6 +1,6 @@
 {
   "name": "bimmo-cli",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "🌿 CLI universal para IAs com interface verde/lavanda, modo agente (Auto-Edit) e contexto inteligente de projeto.",
   "bin": {
     "bimmo": "bin/bimmo"
