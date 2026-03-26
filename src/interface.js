@@ -97,7 +97,7 @@ async function processInput(input) {
 }
 
 function getModeStyle() {
-  const personaLabel = activePersona ? `[${activePersona.toUpperCase()}] ` : '';
+  const personaLabel = activePersona ? `[${activePersona.toUpperCase()}]` : '';
   switch (currentMode) {
     case 'plan': return yellow.bold(`${personaLabel}[PLAN] `);
     case 'edit': 
@@ -145,17 +145,19 @@ export async function startInteractive() {
 
   console.log(lavender('👋 Olá! Estou pronto. No que posso ajudar?\n'));
 
-  process.on('SIGINT', () => {
+  const globalSigIntHandler = () => {
     exitCounter++;
     if (exitCounter === 1) {
-      console.log(gray('\n(Pressione Ctrl+C novamente para sair)'));
+      process.stdout.write(gray('\n(Pressione Ctrl+C novamente para sair)\n'));
       if (exitTimer) clearTimeout(exitTimer);
       exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
     } else {
-      console.log(lavender('\n👋 BIMMO encerrando sessão. Até logo!\n'));
+      process.stdout.write(lavender('\n👋 BIMMO encerrando sessão. Até logo!\n'));
       process.exit(0);
     }
-  });
+  };
+
+  process.on('SIGINT', globalSigIntHandler);
 
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
@@ -335,7 +337,9 @@ Gerenciamento:
 
     const controller = new AbortController();
     const localInterruptHandler = () => controller.abort();
-    process.removeAllListeners('SIGINT');
+    
+    // Switch de SIGINT para modo processamento
+    process.removeListener('SIGINT', globalSigIntHandler);
     process.on('SIGINT', localInterruptHandler);
 
     let modeInstr = "";
@@ -356,33 +360,31 @@ Gerenciamento:
     try {
       let responseText = await provider.sendMessage(messages, { signal: controller.signal });
       spinner.stop();
-      const cleanedText = responseText.replace(/<\/?[^>]+(>|$)/g, "");
+
+      // LIMPEZA AGRESSIVA DE HTML
+      const cleanedText = responseText
+        .replace(/<br\s*\/?>/gi, '\n') // Converte <br> em newline real
+        .replace(/<p>/gi, '')          // Remove tags <p> iniciais
+        .replace(/<\/p>/gi, '\n\n')    // Converte </p> em double newline
+        .replace(/<\/?[^>]+(>|$)/g, ""); // Remove QUALQUER outra tag residual
+
       messages.push({ role: 'assistant', content: responseText });
-      console.log('\n' + lavender('bimmo') + getModeStyle());
+      console.log('\n' + lavender('bimmo ') + getModeStyle());
       console.log(lavender('─'.repeat(50)));
-      console.log(marked(cleanedText));
+      console.log(marked(cleanedText.trim()));
       console.log(gray('─'.repeat(50)) + '\n');
     } catch (err) {
       spinner.stop();
       if (controller.signal.aborted || err.name === 'AbortError') {
-        console.log(yellow('\n\n⚠️  Interrompido.\n'));
+        console.log(yellow('\n\n⚠️  Operação interrompida pelo usuário.\n'));
         messages.pop();
       } else {
         console.error(chalk.red('\n✖ Erro:') + ' ' + err.message + '\n');
       }
     } finally {
+      // Restaura o modo global de saída
       process.removeListener('SIGINT', localInterruptHandler);
-      process.on('SIGINT', () => {
-        exitCounter++;
-        if (exitCounter === 1) {
-          console.log(gray('\n(Pressione Ctrl+C novamente para sair)'));
-          if (exitTimer) clearTimeout(exitTimer);
-          exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
-        } else {
-          console.log(lavender('\n👋 BIMMO encerrando sessão. Até logo!\n'));
-          process.exit(0);
-        }
-      });
+      process.on('SIGINT', globalSigIntHandler);
     }
   }
 }
