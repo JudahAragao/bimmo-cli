@@ -1,0 +1,50 @@
+{
+  "name": "bimmo-cli",
+  "version": "1.2.0",
+  "description": "🌿 CLI universal para IAs com interface verde/lavanda, modo agente (Auto-Edit) e contexto inteligente de projeto.",
+  "bin": {
+    "bimmo": "./bin/bimmo"
+  },
+  "type": "module",
+  "keywords": [
+    "ai",
+    "cli",
+    "openai",
+    "anthropic",
+    "gemini",
+    "grok",
+    "deepseek",
+    "openrouter",
+    "agent",
+    "multimodal",
+    "terminal"
+  ],
+  "author": "Judah",
+  "license": "MIT",
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    ".bimmo-context.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "@google/generative-ai": "^0.21.0",
+    "@tavily/core": "^0.0.2",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "conf": "^13.0.0",
+    "figlet": "^1.7.0",
+    "inquirer": "^10.1.0",
+    "marked": "^14.0.0",
+    "marked-terminal": "^7.0.0",
+    "mime-types": "^2.1.35",
+    "ollama": "^0.5.12",
+    "openai": "^4.82.0",
+    "ora": "^8.1.1",
+    "zod": "^3.24.1"
+  }
+}

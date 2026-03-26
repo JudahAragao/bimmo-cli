@@ -1,0 +1,51 @@
+import ollama from 'ollama';
+import { BaseProvider } from './base.js';
+
+export class OllamaProvider extends BaseProvider {
+  constructor(config) {
+    super(config);
+    this.client = ollama;
+  }
+
+  formatMessages(messages) {
+    return messages.map(msg => {
+      if (typeof msg.content === 'string') return msg;
+
+      const images = msg.content
+        .filter(part => part.type === 'image')
+        .map(part => part.data); // Ollama espera apenas a string base64
+
+      const text = msg.content
+        .filter(part => part.type === 'text')
+        .map(part => part.text)
+        .join(' ');
+
+      return {
+        role: msg.role,
+        content: text,
+        images: images.length > 0 ? images : undefined
+      };
+    });
+  }
+
+  async sendMessage(messages) {
+    const formattedMessages = this.formatMessages(messages);
+
+    const response = await this.client.chat({
+      model: this.config.model,
+      messages: formattedMessages,
+      stream: false,
+      options: {
+        temperature: 0.7,
+      }
+    });
+
+    const text = response.message?.content;
+
+    if (!text) {
+      throw new Error('Resposta inválida do Ollama');
+    }
+
+    return text;
+  }
+}
