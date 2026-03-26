@@ -12,6 +12,7 @@ import readline from 'readline';
 import { getConfig, configure, updateActiveModel, switchProfile } from './config.js';
 import { createProvider } from './providers/factory.js';
 import { getProjectContext } from './project-context.js';
+import { SwarmOrchestrator } from './orchestrator.js';
 
 marked.use(new TerminalRenderer({
   heading: chalk.hex('#c084fc').bold,
@@ -110,6 +111,7 @@ export async function startInteractive() {
   }
 
   let provider = createProvider(config);
+  const orchestrator = new SwarmOrchestrator(config);
   const messages = [];
 
   const projectContext = getProjectContext();
@@ -123,12 +125,11 @@ export async function startInteractive() {
   console.log(lavender('─'.repeat(60)));
   console.log(green(`   Perfil Ativo: ${bold(config.activeProfile || 'Padrão')} (${config.provider.toUpperCase()})`));
   console.log(green(`   Modelo: ${bold(config.model)}`));
-  console.log(gray('   /chat | /plan | /edit | /switch [perfil] | /model [novo] | /help'));
+  console.log(gray('   /chat | /plan | /edit | /swarm | /switch [perfil] | /model [novo] | /help'));
   console.log(lavender('─'.repeat(60)) + '\n');
 
   console.log(lavender('👋 Olá! Sou seu agente BIMMO. No que posso atuar?\n'));
 
-  // Habilita detecção de teclas para Esc
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
 
@@ -191,11 +192,11 @@ export async function startInteractive() {
       console.log(gray(`
 Comandos Disponíveis:
   /chat /plan /edit → Mudar modo de operação
-  /switch [nome]   → Mudar PERFIL (Troca Chave/API/IA completa)
-  /model [nome]    → Mudar apenas o MODELO da IA atual
-  /init            → Inicializar .bimmorc.json neste projeto
-  /config          → Gerenciar perfis e chaves
-  /clear           → Resetar conversa (mantém contexto base)
+  /switch [nome]   → Mudar PERFIL (IA completa)
+  /model [nome]    → Mudar apenas o MODELO atual
+  /swarm           → Configurar e rodar enxames de agentes
+  /config          → Gerenciar perfis e agentes
+  /init            → Inicializar .bimmorc.json
   @caminho         → Anexar arquivos ou imagens
       `));
       continue;
@@ -203,29 +204,70 @@ Comandos Disponíveis:
 
     if (cmd === '/config') { await configure(); config = getConfig(); provider = createProvider(config); continue; }
 
-    if (cmd === '/init') {
-      const bimmoRcPath = path.join(process.cwd(), '.bimmorc.json');
-      if (fs.existsSync(bimmoRcPath)) {
-        const { overwrite } = await inquirer.prompt([{
-          type: 'confirm',
-          name: 'overwrite',
-          message: 'O arquivo .bimmorc.json já existe. Deseja sobrescrever?',
-          default: false
-        }]);
-        if (!overwrite) continue;
+    if (cmd === '/swarm') {
+      const agents = config.agents || {};
+      const agentList = Object.keys(agents);
+
+      if (agentList.length < 2) {
+        console.log(chalk.yellow('\nVocê precisa de pelo menos 2 Agentes configurados para rodar um Enxame.\nUse /config para criar Agentes.\n'));
+        continue;
       }
-      const initialConfig = {
-        projectName: path.basename(process.cwd()),
-        rules: ["Siga as convenções existentes.", "Prefira código modular."],
-        preferredTech: [],
-        ignorePatterns: ["node_modules", ".git"]
-      };
-      fs.writeFileSync(bimmoRcPath, JSON.stringify(initialConfig, null, 2));
-      console.log(green(`\n✅ .bimmorc.json criado.\n`));
+
+      const { swarmAction } = await inquirer.prompt([{
+        type: 'list',
+        name: 'swarmAction',
+        message: 'Ação de Enxame:',
+        choices: ['Rodar Enxame Sequencial', 'Rodar Enxame Hierárquico', 'Voltar']
+      }]);
+
+      if (swarmAction === 'Voltar') continue;
+
+      const { goal } = await inquirer.prompt([{ type: 'input', name: 'goal', message: 'Qual o objetivo final deste enxame?' }]);
+
+      if (swarmAction === 'Rodar Enxame Sequencial') {
+        const { selectedAgents } = await inquirer.prompt([{
+          type: 'checkbox',
+          name: 'selectedAgents',
+          message: 'Selecione os agentes e a ordem (mínimo 2):',
+          choices: agentList
+        }]);
+
+        if (selectedAgents.length < 2) {
+          console.log(chalk.red('\nSelecione pelo menos 2 agentes.\n'));
+          continue;
+        }
+
+        try {
+          const finalResult = await orchestrator.runSequential(selectedAgents, goal);
+          console.log(lavender('\n=== RESULTADO FINAL DO ENXAME ===\n'));
+          console.log(marked(finalResult));
+        } catch (e) {
+          console.error(chalk.red(`\nErro no Enxame: ${e.message}`));
+        }
+      }
+
+      if (swarmAction === 'Rodar Enxame Hierárquico') {
+        const { manager } = await inquirer.prompt([{ type: 'list', name: 'manager', message: 'Selecione o Agente Líder (Manager):', choices: agentList }]);
+        const { workers } = await inquirer.prompt([{ type: 'checkbox', name: 'workers', message: 'Selecione os Workers:', choices: agentList.filter(a => a !== manager) }]);
+
+        try {
+          const finalResult = await orchestrator.runHierarchical(manager, workers, goal);
+          console.log(lavender('\n=== RESULTADO FINAL DO ENXAME ===\n'));
+          console.log(marked(finalResult));
+        } catch (e) {
+          console.error(chalk.red(`\nErro no Enxame: ${e.message}`));
+        }
+      }
       continue;
     }
 
     if (rawInput === '') continue;
+
+    const controller = new AbortController();
+    const interruptHandler = () => controller.abort();
+    const keypressHandler = (str, key) => { if (key.name === 'escape' || (key.ctrl && key.name === 'c')) interruptHandler(); };
+    process.on('SIGINT', interruptHandler);
+    process.stdin.on('keypress', keypressHandler);
 
     let modeInstr = "";
     if (currentMode === 'plan') modeInstr = "\n[MODO PLAN] Descreva e analise, mas NÃO altere arquivos.";
@@ -242,28 +284,11 @@ Comandos Disponíveis:
       color: currentMode === 'edit' ? 'red' : 'magenta'
     }).start();
 
-    // Setup de interrupção
-    const controller = new AbortController();
-    const interruptHandler = () => {
-      controller.abort();
-    };
-
-    const keypressHandler = (str, key) => {
-      if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
-        interruptHandler();
-      }
-    };
-
-    process.on('SIGINT', interruptHandler);
-    process.stdin.on('keypress', keypressHandler);
-
     try {
       let responseText = await provider.sendMessage(messages, { signal: controller.signal });
       spinner.stop();
-
       const cleanedText = responseText.replace(/<\/?[^>]+(>|$)/g, "");
       messages.push({ role: 'assistant', content: responseText });
-
       console.log('\n' + lavender('bimmo') + getModeStyle());
       console.log(lavender('─'.repeat(50)));
       console.log(marked(cleanedText));
@@ -272,7 +297,6 @@ Comandos Disponíveis:
       spinner.stop();
       if (controller.signal.aborted || err.name === 'AbortError') {
         console.log(yellow('\n\n⚠️  Operação interrompida pelo usuário.\n'));
-        // Remove a última mensagem do usuário do histórico para não poluir se foi cancelado
         messages.pop();
       } else {
         console.error(chalk.red('\n✖ Erro Crítico:') + ' ' + err.message + '\n');

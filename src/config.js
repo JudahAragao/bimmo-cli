@@ -29,6 +29,7 @@ export async function configure() {
       choices: [
         { name: 'Criar novo perfil de IA', value: 'create' },
         { name: 'Selecionar perfil ativo', value: 'select' },
+        { name: 'Gerenciar Agentes Especialistas', value: 'agents' },
         { name: 'Configurar chave Tavily', value: 'tavily' },
         { name: 'Sair', value: 'exit' }
       ]
@@ -36,6 +37,8 @@ export async function configure() {
   ]);
 
   if (action === 'exit') return;
+
+  if (action === 'agents') return configureAgents();
 
   if (action === 'tavily') {
     const { tavilyKey } = await inquirer.prompt([{
@@ -74,7 +77,7 @@ export async function configure() {
     {
       type: 'input',
       name: 'profileName',
-      message: 'Dê um nome para este perfil (ex: MeuGPT, ClaudeTrabalho):',
+      message: 'Dê um nome para este perfil:',
       validate: i => i.length > 0 || 'Nome obrigatório'
     },
     {
@@ -118,6 +121,50 @@ export async function configure() {
   config.set('activeProfile', answers.profileName);
 
   console.log(chalk.green(`\n✅ Perfil "${answers.profileName}" criado e ativado!`));
+}
+
+async function configureAgents() {
+  const agents = config.get('agents') || {};
+  const profiles = config.get('profiles') || {};
+  const profileList = Object.keys(profiles);
+
+  const { action } = await inquirer.prompt([{
+    type: 'list',
+    name: 'action',
+    message: 'Gerenciar Agentes:',
+    choices: ['Criar Agente', 'Listar Agentes', 'Remover Agente', 'Voltar']
+  }]);
+
+  if (action === 'Voltar') return configure();
+
+  if (action === 'Criar Agente') {
+    if (profileList.length === 0) {
+      console.log(chalk.red('Crie um perfil de IA primeiro.'));
+      return configure();
+    }
+
+    const answers = await inquirer.prompt([
+      { type: 'input', name: 'name', message: 'Nome do Agente (ex: Arquiteto, Revisor):' },
+      { type: 'list', name: 'profile', message: 'Qual perfil este agente usará?', choices: profileList },
+      { type: 'input', name: 'modelOverride', message: 'Sobrescrever modelo (vazio para manter o do perfil):' },
+      { type: 'list', name: 'mode', message: 'Modo padrão:', choices: ['chat', 'plan', 'edit'] },
+      { type: 'editor', name: 'role', message: 'Descreva a Task/Papel deste agente (System Prompt):' }
+    ]);
+
+    agents[answers.name] = answers;
+    config.set('agents', agents);
+    console.log(chalk.green(`✓ Agente "${answers.name}" criado!`));
+  }
+
+  if (action === 'Listar Agentes') {
+    console.log(chalk.blue('\nAgentes Configurados:'));
+    Object.keys(agents).forEach(name => {
+      console.log(`- ${chalk.bold(name)} [${agents[name].profile}] (Modo: ${agents[name].mode})`);
+    });
+    console.log('');
+  }
+
+  return configureAgents();
 }
 
 export function getConfig() {

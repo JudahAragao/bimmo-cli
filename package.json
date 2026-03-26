@@ -1,7 +1,7 @@
 {
   "name": "bimmo-cli",
-  "version": "1.2.6",
-  "description": "🌿 CLI universal para IAs com interface verde/lavanda, modo agente (Auto-Edit) e contexto inteligente de projeto.",
+  "version": "2.0.0",
+  "description": "🌿 Plataforma de Orquestração de Agentes IA (Swarms) com interface verde/lavanda, modo Auto-Edit e contexto inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
   },
@@ -12,10 +12,9 @@
     "openai",
     "anthropic",
     "gemini",
-    "grok",
-    "deepseek",
-    "openrouter",
     "agent",
+    "swarm",
+    "orchestration",
     "multimodal",
     "terminal"
   ],
