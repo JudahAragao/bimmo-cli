@@ -8,6 +8,7 @@ import path from 'path';
 import mime from 'mime-types';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
+import { stripVTControlCharacters } from 'util';
 
 import { getConfig, configure, updateActiveModel, switchProfile } from './config.js';
 import { createProvider } from './providers/factory.js';
@@ -20,13 +21,13 @@ const __dirname = path.dirname(__filename);
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
 const version = pkg.version;
 
-// CONFIGURAÇÃO DO RENDERIZADOR - Ignora HTML e foca no Terminal
+// Configuração do renderizador - DROP TOTAL DE HTML
 const terminalRenderer = new TerminalRenderer({
   heading: chalk.hex('#c084fc').bold,
   code: chalk.hex('#00ff9d'),
   strong: chalk.bold,
   em: chalk.italic,
-  html: () => '', // DROP TOTAL DE QUALQUER TAG HTML
+  html: (html) => '', // Remove qualquer tag HTML que sobrar
 });
 
 marked.setOptions({ renderer: terminalRenderer });
@@ -42,37 +43,11 @@ let activePersona = null;
 let exitCounter = 0;
 let exitTimer = null;
 
-const i18n = {
-  'pt-BR': {
-    welcome: 'Olá! Estou pronto. No que posso ajudar?',
-    thinking: 'bimmo pensando...',
-    interrupted: 'Operação interrompida.',
-    exitHint: '(Pressione Ctrl+C novamente para sair)',
-    switchOk: 'Perfil ativado!',
-    agentOk: 'Agente ativado:',
-    modeEdit: 'Modo EDIT ativado.',
-    help: '\nComandos:\n /chat | /plan | /edit | /init\n /switch [nome] | /model [nome]\n /use [agente] | /use normal\n /config | /clear | @arquivo\n'
-  },
-  'en-US': {
-    welcome: 'Hello! I am ready. How can I help you?',
-    thinking: 'bimmo thinking...',
-    interrupted: 'Operation interrupted.',
-    exitHint: '(Press Ctrl+C again to exit)',
-    switchOk: 'Profile activated!',
-    agentOk: 'Agent activated:',
-    modeEdit: 'EDIT mode activated.',
-    help: '\nCommands:\n /chat | /plan | /edit | /init\n /switch [name] | /model [name]\n /use [agent] | /use normal\n /config | /clear | @file\n'
-  }
-};
-
-/**
- * Coleta arquivos para preview e completion
- */
 function getFilesForPreview(partialPath) {
   try {
-    const cleanPartial = partialPath.startsWith('@') ? partialPath.slice(1) : partialPath;
-    const dir = path.dirname(cleanPartial) === '.' && !cleanPartial.includes('/') ? '.' : path.dirname(cleanPartial);
-    const base = path.basename(cleanPartial);
+    const p = partialPath.startsWith('@') ? partialPath.slice(1) : partialPath;
+    const dir = path.dirname(p) === '.' && !p.includes('/') ? '.' : path.dirname(p);
+    const base = path.basename(p) === '.' ? '' : path.basename(p);
     
     const searchDir = path.resolve(process.cwd(), dir);
     if (!fs.existsSync(searchDir)) return [];
@@ -100,9 +75,6 @@ function cleanAIResponse(text) {
 
 export async function startInteractive() {
   let config = getConfig();
-  const lang = config.language || 'pt-BR';
-  const t = i18n[lang] || i18n['pt-BR'];
-
   if (!config.provider || !config.apiKey) {
     console.log(lavender(figlet.textSync('bimmo')));
     await configure(); 
@@ -131,13 +103,10 @@ export async function startInteractive() {
   console.log(green(`   Modelo: ${bold(config.model)}`));
   console.log(lavender('─'.repeat(60)) + '\n');
 
-  console.log(lavender(`👋 ${t.welcome}\n`));
-
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     terminal: true,
-    historySize: 100,
     completer: (line) => {
       const words = line.split(' ');
       const lastWord = words[words.length - 1];
@@ -152,130 +121,101 @@ export async function startInteractive() {
   let currentPreviewLines = 0;
 
   const clearPreview = () => {
-    for (let i = 0; i < currentPreviewLines; i++) {
-      readline.moveCursor(process.stdout, 0, 1);
-      readline.clearLine(process.stdout, 0);
-    }
     if (currentPreviewLines > 0) {
-      readline.moveCursor(process.stdout, 0, -currentPreviewLines);
+      // Move o cursor para o final das linhas de preview e apaga tudo
+      readline.moveCursor(process.stdout, 0, currentPreviewLines);
+      for (let i = 0; i < currentPreviewLines; i++) {
+        readline.moveCursor(process.stdout, 0, -1);
+        readline.clearLine(process.stdout, 0);
+      }
+      currentPreviewLines = 0;
     }
-    currentPreviewLines = 0;
   };
 
-  const showPreview = (line) => {
+  const showPreview = () => {
     clearPreview();
-    const words = line.split(' ');
+    const words = rl.line.split(' ');
     const lastWord = words[words.length - 1];
     
     if (lastWord.startsWith('@')) {
       const files = getFilesForPreview(lastWord);
       if (files.length > 0) {
         process.stdout.write('\n');
-        files.slice(0, 10).forEach(f => {
+        const displayFiles = files.slice(0, 8);
+        displayFiles.forEach(f => {
           process.stdout.write(gray(`  ${f.isDir ? '📁' : '📄'} ${f.name}\n`));
         });
-        currentPreviewLines = Math.min(files.length, 10) + 1;
+        currentPreviewLines = displayFiles.length + 1;
+        // Volta o cursor para a linha do prompt de forma segura
         readline.moveCursor(process.stdout, 0, -currentPreviewLines);
-        readline.cursorTo(process.stdout, rl.line.length + rl.getPrompt().length);
+        // Posiciona o cursor exatamente onde o usuário estava digitando
+        const promptText = rl.getPrompt();
+        const visualPromptLen = stripVTControlCharacters(promptText).length;
+        const totalLen = visualPromptLen + rl.line.length;
+        const cols = process.stdout.columns || 80;
+        readline.cursorTo(process.stdout, totalLen % cols);
       }
     }
   };
-
-  // Monitora digitação em tempo real
-  process.stdin.on('keypress', (s, key) => {
-    // Pequeno delay para o readline atualizar a linha interna
-    setImmediate(() => showPreview(rl.line));
-  });
-
-  rl.on('SIGINT', () => {
-    if (exitCounter === 0) {
-      exitCounter++;
-      console.log(`\n${gray(t.exitHint)}`);
-      exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
-      displayPrompt();
-    } else {
-      process.exit(0);
-    }
-  });
 
   const displayPrompt = () => {
     const personaLabel = activePersona ? `[${activePersona.toUpperCase()}]` : '';
     let modeLabel = `[${currentMode.toUpperCase()}]`;
     if (currentMode === 'edit') modeLabel = editState.autoAccept ? '[EDIT(AUTO)]' : '[EDIT(MANUAL)]';
     
-    console.log(`${gray(`📁 ${process.cwd()}`)}`);
+    console.log(`\n${gray(`📁 ${process.cwd()}`)}`);
     rl.setPrompt(lavender.bold(personaLabel) + (currentMode === 'edit' ? chalk.red.bold(modeLabel) : lavender.bold(modeLabel)) + green(' > '));
     rl.prompt();
   };
+
+  // Escuta teclas para o preview em tempo real
+  process.stdin.on('keypress', (s, key) => {
+    if (key && (key.name === 'return' || key.name === 'enter')) return;
+    setImmediate(() => showPreview());
+  });
+
+  rl.on('SIGINT', () => {
+    if (exitCounter === 0) {
+      exitCounter++;
+      process.stdout.write(`\n${gray('(Pressione novamente para sair)')}\n`);
+      exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
+      displayPrompt();
+    } else { process.exit(0); }
+  });
 
   displayPrompt();
 
   rl.on('line', async (input) => {
     clearPreview();
     const rawInput = input.trim();
-    const cmd = rawInput.toLowerCase();
-
     if (rawInput === '') { displayPrompt(); return; }
 
+    const cmd = rawInput.toLowerCase();
     if (cmd === '/exit' || cmd === 'sair') process.exit(0);
     if (cmd === '/chat') { currentMode = 'chat'; displayPrompt(); return; }
     if (cmd === '/plan') { currentMode = 'plan'; displayPrompt(); return; }
     if (cmd === '/edit' || cmd === '/edit manual') { currentMode = 'edit'; editState.autoAccept = false; displayPrompt(); return; }
     if (cmd === '/edit auto') { currentMode = 'edit'; editState.autoAccept = true; displayPrompt(); return; }
     if (cmd === '/clear') { resetMessages(); console.clear(); displayPrompt(); return; }
-    if (cmd === '/help') { console.log(gray(t.help)); displayPrompt(); return; }
-
+    
     if (cmd === '/init') {
-      console.log(chalk.cyan('\n🚀 Analisando projeto para gerar .bimmorc.json inteligente...\n'));
-      const initPrompt = `Analise a estrutura atual deste projeto e crie um arquivo chamado .bimmorc.json na raiz com nome, regras, stack e arquitetura. Use write_file.`;
-      
-      const controller = new AbortController();
-      const spinner = ora({ text: lavender(`${t.thinking}`), color: 'red' }).start();
+      console.log(chalk.cyan('\n🚀 Gerando .bimmorc.json...\n'));
+      const initPrompt = `Analise o projeto e crie o .bimmorc.json com regras e stack. Use write_file.`;
+      const spinner = ora({ text: lavender(`bimmo pensando...`), color: 'red' }).start();
       try {
-        const res = await provider.sendMessage([...messages, { role: 'user', content: initPrompt }], { signal: controller.signal });
+        const res = await provider.sendMessage([...messages, { role: 'user', content: initPrompt }]);
         spinner.stop();
         console.log(marked.parse(cleanAIResponse(res)));
       } catch (e) { spinner.stop(); console.error(chalk.red(e.message)); }
-      resetMessages();
-      displayPrompt();
-      return;
+      resetMessages(); displayPrompt(); return;
     }
 
-    if (cmd === '/config') {
-      rl.pause(); await configure(); config = getConfig(); provider = createProvider(config); rl.resume();
-      displayPrompt(); return;
-    }
-
-    if (cmd.startsWith('/switch ')) {
-      const pName = rawInput.split(' ')[1];
-      if (switchProfile(pName)) {
-        config = getConfig(); provider = createProvider(config);
-        console.log(green(`\n✓ ${t.switchOk}`));
-      } else { console.log(chalk.red(`\n✖ Perfil não encontrado.`)); }
-      displayPrompt(); return;
-    }
-
-    if (cmd.startsWith('/use ')) {
-      const aName = rawInput.split(' ')[1];
-      if (aName === 'normal') { activePersona = null; resetMessages(); displayPrompt(); return; }
-      const agents = config.agents || {};
-      if (agents[aName]) {
-        activePersona = aName;
-        const agent = agents[aName];
-        if (switchProfile(agent.profile)) { config = getConfig(); provider = createProvider(config); }
-        currentMode = agent.mode || 'chat';
-        console.log(green(`\n✓ ${t.agentOk} ${bold(aName)}`));
-        resetMessages();
-      } else { console.log(chalk.red(`\n✖ Agente não encontrado.`)); }
-      displayPrompt(); return;
-    }
+    if (cmd === '/config') { rl.pause(); await configure(); config = getConfig(); provider = createProvider(config); rl.resume(); displayPrompt(); return; }
 
     // PROCESSAMENTO IA
     const controller = new AbortController();
     const abortHandler = () => controller.abort();
-    
-    // Remove temporariamente o listener de preview para não conflitar com a saída da IA
-    process.stdin.removeAllListeners('keypress');
+    process.removeListener('SIGINT', () => {}); // Limpa handlers antigos
     process.on('SIGINT', abortHandler);
 
     let modeInstr = "";
@@ -288,34 +228,28 @@ export async function startInteractive() {
       if (word.startsWith('@')) {
         const filePath = word.slice(1);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-          const content = fs.readFileSync(filePath, 'utf-8');
-          processedContent.push({ type: 'text', text: `\n[ARQUIVO: ${filePath}]\n${content}\n` });
+          processedContent.push({ type: 'text', text: `\n[ARQUIVO: ${filePath}]\n${fs.readFileSync(filePath, 'utf-8')}\n` });
         } else { processedContent.push({ type: 'text', text: word }); }
       } else { processedContent.push({ type: 'text', text: word }); }
     }
 
     messages.push({ role: 'user', content: [...processedContent, { type: 'text', text: modeInstr }] });
-    const spinner = ora({ text: lavender(`${t.thinking} (Ctrl+C para parar)`), color: currentMode === 'edit' ? 'red' : 'magenta' }).start();
+    const spinner = ora({ text: lavender(`bimmo pensando... (Ctrl+C para parar)`), color: currentMode === 'edit' ? 'red' : 'magenta' }).start();
 
     try {
       let responseText = await provider.sendMessage(messages, { signal: controller.signal });
       spinner.stop();
-      const cleanedText = cleanAIResponse(responseText);
-      messages.push({ role: 'assistant', content: responseText });
       console.log(`\n${lavender('bimmo ')}${currentMode.toUpperCase()}`);
       console.log(lavender('─'.repeat(50)));
-      process.stdout.write(marked.parse(cleanedText));
+      process.stdout.write(marked.parse(cleanAIResponse(responseText)));
       console.log(gray('\n' + '─'.repeat(50)));
+      messages.push({ role: 'assistant', content: responseText });
     } catch (err) {
       spinner.stop();
-      if (controller.signal.aborted) { console.log(yellow(`\n⚠️  ${t.interrupted}`)); messages.pop(); }
+      if (controller.signal.aborted) { console.log(yellow(`\n⚠️  Interrompido.`)); messages.pop(); }
       else { console.error(chalk.red(`\n✖ Erro: ${err.message}`)); }
     } finally {
       process.removeListener('SIGINT', abortHandler);
-      // Reativa o listener de preview
-      process.stdin.on('keypress', (s, key) => {
-        setImmediate(() => showPreview(rl.line));
-      });
       displayPrompt();
     }
   });
