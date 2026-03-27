@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import figlet from 'figlet';
-import inquirer from 'inquirer';
 import { marked } from 'marked';
 import TerminalRenderer from 'marked-terminal';
 import ora from 'ora';
@@ -21,17 +20,16 @@ const __dirname = path.dirname(__filename);
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
 const version = pkg.version;
 
+// CONFIGURAÇÃO DO RENDERIZADOR - Ignora HTML e foca no Terminal
 const terminalRenderer = new TerminalRenderer({
   heading: chalk.hex('#c084fc').bold,
   code: chalk.hex('#00ff9d'),
   strong: chalk.bold,
   em: chalk.italic,
+  html: () => '', // DROP TOTAL DE QUALQUER TAG HTML
 });
 
-marked.use(new TerminalRenderer({
-  heading: chalk.hex('#c084fc').bold,
-  code: chalk.hex('#00ff9d'),
-}));
+marked.setOptions({ renderer: terminalRenderer });
 
 const green = chalk.hex('#00ff9d');
 const lavender = chalk.hex('#c084fc');
@@ -67,15 +65,26 @@ const i18n = {
   }
 };
 
-function getFilesForCompletion(partialPath) {
+/**
+ * Coleta arquivos para preview e completion
+ */
+function getFilesForPreview(partialPath) {
   try {
-    const p = partialPath.startsWith('@') ? partialPath.slice(1) : partialPath;
-    const dir = path.dirname(p) || '.';
-    const base = path.basename(p);
-    const files = fs.readdirSync(path.resolve(process.cwd(), dir));
+    const cleanPartial = partialPath.startsWith('@') ? partialPath.slice(1) : partialPath;
+    const dir = path.dirname(cleanPartial) === '.' && !cleanPartial.includes('/') ? '.' : path.dirname(cleanPartial);
+    const base = path.basename(cleanPartial);
+    
+    const searchDir = path.resolve(process.cwd(), dir);
+    if (!fs.existsSync(searchDir)) return [];
+
+    const files = fs.readdirSync(searchDir);
     return files
-      .filter(f => f.startsWith(base) && !f.startsWith('.') && f !== 'node_modules')
-      .map(f => path.join(dir, f));
+      .filter(f => (base === '' || f.startsWith(base)) && !f.startsWith('.') && f !== 'node_modules')
+      .map(f => {
+        const rel = path.join(dir === '.' ? '' : dir, f);
+        const isDir = fs.statSync(path.join(searchDir, f)).isDirectory();
+        return { name: rel, isDir };
+      });
   } catch (e) { return []; }
 }
 
@@ -124,33 +133,77 @@ export async function startInteractive() {
 
   console.log(lavender(`👋 ${t.welcome}\n`));
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true, historySize: 100,
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+    historySize: 100,
     completer: (line) => {
       const words = line.split(' ');
       const lastWord = words[words.length - 1];
       if (lastWord.startsWith('@')) {
-        const hits = getFilesForCompletion(lastWord);
-        return [hits.map(h => `@${h}`), lastWord];
+        const hits = getFilesForPreview(lastWord).map(h => `@${h.name}`);
+        return [hits, lastWord];
       }
       return [[], line];
     }
   });
 
+  let currentPreviewLines = 0;
+
+  const clearPreview = () => {
+    for (let i = 0; i < currentPreviewLines; i++) {
+      readline.moveCursor(process.stdout, 0, 1);
+      readline.clearLine(process.stdout, 0);
+    }
+    if (currentPreviewLines > 0) {
+      readline.moveCursor(process.stdout, 0, -currentPreviewLines);
+    }
+    currentPreviewLines = 0;
+  };
+
+  const showPreview = (line) => {
+    clearPreview();
+    const words = line.split(' ');
+    const lastWord = words[words.length - 1];
+    
+    if (lastWord.startsWith('@')) {
+      const files = getFilesForPreview(lastWord);
+      if (files.length > 0) {
+        process.stdout.write('\n');
+        files.slice(0, 10).forEach(f => {
+          process.stdout.write(gray(`  ${f.isDir ? '📁' : '📄'} ${f.name}\n`));
+        });
+        currentPreviewLines = Math.min(files.length, 10) + 1;
+        readline.moveCursor(process.stdout, 0, -currentPreviewLines);
+        readline.cursorTo(process.stdout, rl.line.length + rl.getPrompt().length);
+      }
+    }
+  };
+
+  // Monitora digitação em tempo real
+  process.stdin.on('keypress', (s, key) => {
+    // Pequeno delay para o readline atualizar a linha interna
+    setImmediate(() => showPreview(rl.line));
+  });
+
   rl.on('SIGINT', () => {
-    exitCounter++;
-    if (exitCounter === 1) {
+    if (exitCounter === 0) {
+      exitCounter++;
       console.log(`\n${gray(t.exitHint)}`);
-      if (exitTimer) clearTimeout(exitTimer);
       exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
       displayPrompt();
-    } else { process.exit(0); }
+    } else {
+      process.exit(0);
+    }
   });
 
   const displayPrompt = () => {
     const personaLabel = activePersona ? `[${activePersona.toUpperCase()}]` : '';
     let modeLabel = `[${currentMode.toUpperCase()}]`;
     if (currentMode === 'edit') modeLabel = editState.autoAccept ? '[EDIT(AUTO)]' : '[EDIT(MANUAL)]';
-    console.log(`\n${gray(`📁 ${process.cwd()}`)}`);
+    
+    console.log(`${gray(`📁 ${process.cwd()}`)}`);
     rl.setPrompt(lavender.bold(personaLabel) + (currentMode === 'edit' ? chalk.red.bold(modeLabel) : lavender.bold(modeLabel)) + green(' > '));
     rl.prompt();
   };
@@ -158,8 +211,10 @@ export async function startInteractive() {
   displayPrompt();
 
   rl.on('line', async (input) => {
+    clearPreview();
     const rawInput = input.trim();
     const cmd = rawInput.toLowerCase();
+
     if (rawInput === '') { displayPrompt(); return; }
 
     if (cmd === '/exit' || cmd === 'sair') process.exit(0);
@@ -170,12 +225,33 @@ export async function startInteractive() {
     if (cmd === '/clear') { resetMessages(); console.clear(); displayPrompt(); return; }
     if (cmd === '/help') { console.log(gray(t.help)); displayPrompt(); return; }
 
-    if (cmd === '/config') { rl.pause(); await configure(); config = getConfig(); provider = createProvider(config); rl.resume(); displayPrompt(); return; }
+    if (cmd === '/init') {
+      console.log(chalk.cyan('\n🚀 Analisando projeto para gerar .bimmorc.json inteligente...\n'));
+      const initPrompt = `Analise a estrutura atual deste projeto e crie um arquivo chamado .bimmorc.json na raiz com nome, regras, stack e arquitetura. Use write_file.`;
+      
+      const controller = new AbortController();
+      const spinner = ora({ text: lavender(`${t.thinking}`), color: 'red' }).start();
+      try {
+        const res = await provider.sendMessage([...messages, { role: 'user', content: initPrompt }], { signal: controller.signal });
+        spinner.stop();
+        console.log(marked.parse(cleanAIResponse(res)));
+      } catch (e) { spinner.stop(); console.error(chalk.red(e.message)); }
+      resetMessages();
+      displayPrompt();
+      return;
+    }
+
+    if (cmd === '/config') {
+      rl.pause(); await configure(); config = getConfig(); provider = createProvider(config); rl.resume();
+      displayPrompt(); return;
+    }
 
     if (cmd.startsWith('/switch ')) {
       const pName = rawInput.split(' ')[1];
-      if (switchProfile(pName)) { config = getConfig(); provider = createProvider(config); console.log(green(`\n✓ ${t.switchOk}`)); }
-      else { console.log(chalk.red(`\n✖ Perfil não encontrado.`)); }
+      if (switchProfile(pName)) {
+        config = getConfig(); provider = createProvider(config);
+        console.log(green(`\n✓ ${t.switchOk}`));
+      } else { console.log(chalk.red(`\n✖ Perfil não encontrado.`)); }
       displayPrompt(); return;
     }
 
@@ -194,26 +270,12 @@ export async function startInteractive() {
       displayPrompt(); return;
     }
 
-    // LÓGICA ESPECIAL /INIT
-    let finalInput = rawInput;
-    if (cmd === '/init') {
-      console.log(chalk.cyan('\n🚀 Analisando projeto para gerar .bimmorc.json inteligente...\n'));
-      finalInput = `Analise a estrutura atual deste projeto e crie um arquivo chamado .bimmorc.json na raiz. 
-O arquivo DEVE seguir esta estrutura JSON estritamente:
-{
-  "projectName": "nome-do-projeto",
-  "rules": ["lista de no mínimo 5 regras de codificação baseadas no que você viu no código"],
-  "techStack": ["lista de tecnologias detectadas"],
-  "architecture": "descrição da arquitetura",
-  "ignorePatterns": ["pastas a ignorar"]
-}
-Use a ferramenta write_file para salvar o arquivo. Depois de salvar, explique brevemente as decisões.`;
-      currentMode = 'edit'; // Forçamos modo edit para que a IA possa salvar o arquivo
-    }
-
     // PROCESSAMENTO IA
     const controller = new AbortController();
     const abortHandler = () => controller.abort();
+    
+    // Remove temporariamente o listener de preview para não conflitar com a saída da IA
+    process.stdin.removeAllListeners('keypress');
     process.on('SIGINT', abortHandler);
 
     let modeInstr = "";
@@ -221,7 +283,7 @@ Use a ferramenta write_file para salvar o arquivo. Depois de salvar, explique br
     else if (currentMode === 'edit') modeInstr = `\n[MODO EDIT] Auto-Accept: ${editState.autoAccept ? 'ON' : 'OFF'}`;
 
     const processedContent = [];
-    const words = finalInput.split(' ');
+    const words = rawInput.split(' ');
     for (const word of words) {
       if (word.startsWith('@')) {
         const filePath = word.slice(1);
@@ -242,14 +304,18 @@ Use a ferramenta write_file para salvar o arquivo. Depois de salvar, explique br
       messages.push({ role: 'assistant', content: responseText });
       console.log(`\n${lavender('bimmo ')}${currentMode.toUpperCase()}`);
       console.log(lavender('─'.repeat(50)));
-      console.log(marked.parse(cleanedText));
-      console.log(gray('─'.repeat(50)));
+      process.stdout.write(marked.parse(cleanedText));
+      console.log(gray('\n' + '─'.repeat(50)));
     } catch (err) {
       spinner.stop();
       if (controller.signal.aborted) { console.log(yellow(`\n⚠️  ${t.interrupted}`)); messages.pop(); }
       else { console.error(chalk.red(`\n✖ Erro: ${err.message}`)); }
     } finally {
       process.removeListener('SIGINT', abortHandler);
+      // Reativa o listener de preview
+      process.stdin.on('keypress', (s, key) => {
+        setImmediate(() => showPreview(rl.line));
+      });
       displayPrompt();
     }
   });
