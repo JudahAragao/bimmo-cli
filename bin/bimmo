@@ -4,13 +4,11 @@
 process.removeAllListeners('warning');
 
 import { program } from 'commander';
+import { startInteractive } from '../src/interface.js';
 import { configure } from '../src/config.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
-// Importa a interface compilada em dist/
-import { startInteractive } from '../dist/interface.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { render, Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
@@ -16,7 +16,6 @@ import { getProjectContext } from './project-context.js';
 import { editState } from './agent.js';
 import { SwarmOrchestrator } from './orchestrator.js';
 
-// --- CONFIGURAÇÃO VISUAL ---
 const green = '#00ff9d';
 const lavender = '#c084fc';
 const gray = '#6272a4';
@@ -37,63 +36,63 @@ const __dirname = path.dirname(__filename);
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
 const version = pkg.version;
 
-// --- COMPONENTES ---
+const h = React.createElement;
 
 const Header = ({ config }) => (
-  <Box flexDirection="column" marginBottom={1}>
-    <Text color={lavender}>{figlet.textSync('bimmo')}</Text>
-    <Box borderStyle="single" borderColor={lavender} paddingX={1} justifyContent="space-between">
-      <Text color={green} bold>v{version}</Text>
-      <Box>
-        <Text color={gray}>{config.activeProfile || 'Default'} </Text>
-        <Text color={lavender}>•</Text>
-        <Text color={gray}> {config.model}</Text>
-      </Box>
-    </Box>
-  </Box>
+  h(Box, { flexDirection: 'column', marginBottom: 1 },
+    h(Text, { color: lavender }, figlet.textSync('bimmo')),
+    h(Box, { borderStyle: 'single', borderColor: lavender, paddingX: 1, justifyContent: 'space-between' },
+      h(Text, { color: green, bold: true }, `v${version}`),
+      h(Box, null,
+        h(Text, { color: gray }, `${config.activeProfile || 'Default'} `),
+        h(Text, { color: lavender }, '•'),
+        h(Text, { color: gray }, ` ${config.model}`)
+      )
+    )
+  )
 );
 
 const MessageList = ({ messages }) => (
-  <Box flexDirection="column" flexGrow={1}>
-    {messages.filter(m => m.role !== 'system').slice(-10).map((m, i) => (
-      <Box key={i} flexDirection="column" marginBottom={1}>
-        <Box>
-          <Text bold color={m.role === 'user' ? green : lavender}>
-            {m.role === 'user' ? '› Você' : '› bimmo'}
-          </Text>
-          {m.role === 'system' && <Text color={yellow}> [SISTEMA]</Text>}
-        </Box>
-        <Box paddingLeft={2}>
-          <Text>
-            {m.role === 'assistant' 
+  h(Box, { flexDirection: 'column', flexGrow: 1 },
+    messages.filter(m => m.role !== 'system').slice(-10).map((m, i) => (
+      h(Box, { key: i, flexDirection: 'column', marginBottom: 1 },
+        h(Box, null,
+          h(Text, { bold: true, color: m.role === 'user' ? green : lavender },
+            m.role === 'user' ? '› Você' : '› bimmo'
+          ),
+          m.role === 'system' && h(Text, { color: yellow }, ' [SISTEMA]')
+        ),
+        h(Box, { paddingLeft: 2 },
+          h(Text, null, 
+            m.role === 'assistant' 
               ? marked.parse(m.content).trim() 
-              : (m.displayContent || m.content)}
-          </Text>
-        </Box>
-      </Box>
-    ))}
-  </Box>
+              : (m.displayContent || m.content)
+          )
+        )
+      )
+    ))
+  )
 );
 
 const Autocomplete = ({ suggestions }) => (
-  <Box flexDirection="column" borderStyle="round" borderColor={gray} paddingX={1} marginBottom={1}>
-    <Text color={gray} dimColor italic>Sugestões (TAB para completar):</Text>
-    {suggestions.map((f, i) => (
-      <Text key={i} color={i === 0 ? green : gray}>
-        {f.isDir ? '📁' : '📄'} {f.rel}{f.isDir ? '/' : ''}
-      </Text>
-    ))}
-  </Box>
+  h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: gray, paddingX: 1, marginBottom: 1 },
+    h(Text, { color: gray, dimColor: true, italic: true }, 'Sugestões (TAB para completar):'),
+    suggestions.map((f, i) => (
+      h(Text, { key: i, color: i === 0 ? green : gray },
+        `${f.isDir ? '📁' : '📄'} ${f.rel}${f.isDir ? '/' : ''}`
+      )
+    ))
+  )
 );
 
 const Footer = ({ exitCounter }) => (
-  <Box marginTop={1} justifyContent="space-between" paddingX={1}>
-    <Text color={gray} dimColor>📁 {path.relative(process.env.HOME || '', process.cwd())}</Text>
-    {exitCounter === 1 && <Text color={yellow} bold> Pressione Ctrl+C novamente para sair</Text>}
-    <Box>
-      <Text color={gray} dimColor italic>↑↓ para histórico • /help para comandos</Text>
-    </Box>
-  </Box>
+  h(Box, { marginTop: 1, justifyContent: 'space-between', paddingX: 1 },
+    h(Text, { color: gray, dimColor: true }, `📁 ${path.relative(process.env.HOME || '', process.cwd())}`),
+    exitCounter === 1 && h(Text, { color: yellow, bold: true }, ' Pressione Ctrl+C novamente para sair'),
+    h(Box, null,
+      h(Text, { color: gray, dimColor: true, italic: true }, '↑↓ para histórico • /help para comandos')
+    )
+  )
 );
 
 const BimmoApp = ({ initialConfig }) => {
@@ -108,7 +107,6 @@ const BimmoApp = ({ initialConfig }) => {
   const [exitCounter, setExitCounter] = useState(0);
   const [provider, setProvider] = useState(() => createProvider(initialConfig));
 
-  // Inicializa contexto
   useEffect(() => {
     const ctx = getProjectContext();
     setMessages([
@@ -146,7 +144,6 @@ const BimmoApp = ({ initialConfig }) => {
     const parts = rawInput.split(' ');
     const cmd = parts[0].toLowerCase();
 
-    // Comandos de Sistema
     if (cmd === '/exit') exit();
     if (cmd === '/clear') {
       setMessages([{ role: 'system', content: getProjectContext() }, { role: 'assistant', content: 'Chat limpo.' }]);
@@ -215,7 +212,6 @@ const BimmoApp = ({ initialConfig }) => {
       return;
     }
 
-    // Processamento de arquivos @
     setIsThinking(true);
     let processedInput = rawInput;
     const fileMatches = rawInput.match(/@[\w\.\-\/]+/g);
@@ -266,30 +262,24 @@ const BimmoApp = ({ initialConfig }) => {
   });
 
   return (
-    <Box flexDirection="column" paddingX={1} minHeight={10}>
-      <Header config={config} />
-      <MessageList messages={messages} />
-      
-      {isThinking && (
-        <Box marginBottom={1}>
-          <Text color={lavender}>
-            <Spinner type="dots" /> <Text italic>{thinkingMessage}</Text>
-          </Text>
-        </Box>
-      )}
-
-      {filePreview.length > 0 && <Autocomplete suggestions={filePreview} />}
-
-      <Box borderStyle="round" borderColor={isThinking ? gray : lavender} paddingX={1}>
-        <Text bold color={mode === 'edit' ? red : mode === 'plan' ? cyan : lavender}>
-          {activePersona ? `[${activePersona.toUpperCase()}] ` : ''}
-          [{mode.toUpperCase()}] ›{' '}
-        </Text>
-        <TextInput value={input} onChange={setInput} onSubmit={handleSubmit} placeholder="Como posso ajudar hoje?" />
-      </Box>
-
-      <Footer exitCounter={exitCounter} />
-    </Box>
+    h(Box, { flexDirection: 'column', paddingX: 1, minHeight: 10 },
+      h(Header, { config }),
+      h(MessageList, { messages }),
+      isThinking && h(Box, { marginBottom: 1 },
+        h(Text, { color: lavender },
+          h(Spinner, { type: 'dots' }),
+          h(Text, { italic: true }, ` ${thinkingMessage}`)
+        )
+      ),
+      filePreview.length > 0 && h(Autocomplete, { suggestions: filePreview }),
+      h(Box, { borderStyle: 'round', borderColor: isThinking ? gray : lavender, paddingX: 1 },
+        h(Text, { bold: true, color: mode === 'edit' ? red : mode === 'plan' ? cyan : lavender },
+          `${activePersona ? `[${activePersona.toUpperCase()}] ` : ''}[${mode.toUpperCase()}] › `
+        ),
+        h(TextInput, { value: input, onChange: setInput, onSubmit: handleSubmit, placeholder: 'Como posso ajudar hoje?' })
+      ),
+      h(Footer, { exitCounter })
+    )
   );
 };
 
@@ -300,5 +290,5 @@ export async function startInteractive() {
     process.exit(0);
   }
   process.stdout.write('\x1Bc');
-  render(<BimmoApp initialConfig={config} />);
+  render(h(BimmoApp, { initialConfig: config }));
 }
