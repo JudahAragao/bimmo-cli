@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { render, Box, Text, useInput, useApp, Static } from "ink";
 import TextInput from "ink-text-input";
 import Spinner from "ink-spinner";
-import Divider from "ink-divider";
 import chalk from "chalk";
 import figlet from "figlet";
 import { marked } from "marked";
@@ -37,6 +36,11 @@ const pkgPath = fs.existsSync(path.join(__dirname, "../package.json")) ? path.jo
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 const version = pkg.version;
 const h = React.createElement;
+const Divider = ({ borderColor = THEME.border }) => h(
+  Box,
+  { paddingY: 0 },
+  h(Text, { color: borderColor }, "\u2500".repeat(process.stdout.columns || 50))
+);
 const Header = ({ config }) => h(
   Box,
   { flexDirection: "column", marginBottom: 1 },
