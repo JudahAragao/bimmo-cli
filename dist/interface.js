@@ -23,24 +23,28 @@ const THEME = {
   cyan: "#8be9fd",
   border: "#44475a"
 };
-marked.use(new TerminalRenderer({
-  heading: chalk.hex(THEME.lavender).bold,
-  code: chalk.hex(THEME.green),
-  strong: chalk.bold,
-  em: chalk.italic,
-  html: () => ""
-}));
+marked.use({
+  renderer: new TerminalRenderer({
+    heading: chalk.hex(THEME.lavender).bold,
+    code: chalk.hex(THEME.green),
+    strong: chalk.bold,
+    em: chalk.italic
+  })
+});
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const pkgPath = fs.existsSync(path.join(__dirname, "../package.json")) ? path.join(__dirname, "../package.json") : path.join(__dirname, "../../package.json");
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 const version = pkg.version;
 const h = React.createElement;
-const Divider = ({ borderColor = THEME.border }) => h(
-  Box,
-  { paddingY: 0 },
-  h(Text, { color: borderColor }, "\u2500".repeat(process.stdout.columns || 50))
-);
+const Divider = ({ borderColor = THEME.border }) => {
+  const width = Math.max(10, (process.stdout.columns || 80) - 4);
+  return h(
+    Box,
+    { paddingY: 0, paddingX: 2 },
+    h(Text, { color: borderColor }, "\u2500".repeat(width))
+  );
+};
 const Header = ({ config }) => h(
   Box,
   { flexDirection: "column", marginBottom: 1 },

@@ -27,13 +27,14 @@ const THEME = {
   border: '#44475a'
 };
 
-marked.use(new TerminalRenderer({
-  heading: chalk.hex(THEME.lavender).bold,
-  code: chalk.hex(THEME.green),
-  strong: chalk.bold,
-  em: chalk.italic,
-  html: () => '', 
-}));
+marked.use({
+  renderer: new TerminalRenderer({
+    heading: chalk.hex(THEME.lavender).bold,
+    code: chalk.hex(THEME.green),
+    strong: chalk.bold,
+    em: chalk.italic
+  })
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,11 +49,12 @@ const h = React.createElement;
 
 // --- COMPONENTES ---
 
-const Divider = ({ borderColor = THEME.border }) => (
-  h(Box, { paddingY: 0 },
-    h(Text, { color: borderColor }, '─'.repeat(process.stdout.columns || 50))
-  )
-);
+const Divider = ({ borderColor = THEME.border }) => {
+  const width = Math.max(10, (process.stdout.columns || 80) - 4);
+  return h(Box, { paddingY: 0, paddingX: 2 },
+    h(Text, { color: borderColor }, '─'.repeat(width))
+  );
+};
 
 const Header = ({ config }) => (
   h(Box, { flexDirection: 'column', marginBottom: 1 },
