@@ -1,7 +1,7 @@
 {
   "name": "bimmo-cli",
-  "version": "2.2.11",
-  "description": "🌿 Plataforma de IA universal profissional com Agentes e Swarms. Suporte a Autocomplete real-time robusto, Diffs e Contexto Inteligente.",
+  "version": "2.2.12",
+  "description": "🌿 Plataforma de IA universal profissional com Agentes e Swarms. Suporte a Autocomplete real-time sólido, Diffs e Contexto Inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
   },
