@@ -1,13 +1,22 @@
 {
   "name": "bimmo-cli",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "🌿 Plataforma de IA universal profissional com interface React (Ink). Agentes, Swarms, Autocomplete real-time e Contexto Inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
   },
   "type": "module",
   "keywords": [
-    "ai", "cli", "ink", "react", "openai", "anthropic", "gemini", "agent", "swarm", "terminal"
+    "ai",
+    "cli",
+    "ink",
+    "react",
+    "openai",
+    "anthropic",
+    "gemini",
+    "agent",
+    "swarm",
+    "terminal"
   ],
   "author": "Judah",
   "license": "MIT",
@@ -25,6 +34,7 @@
     "access": "public"
   },
   "dependencies": {
+    "tsx": "^4.19.2",
     "@anthropic-ai/sdk": "^0.36.3",
     "@google/generative-ai": "^0.21.0",
     "@tavily/core": "^0.0.2",
@@ -39,6 +49,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "inquirer": "^9.3.8",
+    "jiti": "^2.6.1",
     "marked": "^14.0.0",
     "marked-terminal": "^7.0.0",
     "mime-types": "^2.1.35",
@@ -47,5 +58,8 @@
     "ora": "^8.1.1",
     "react": "^18.2.0",
     "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
   }
 }

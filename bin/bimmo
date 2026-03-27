@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --import=tsx
 
 // Silencia o aviso de depreciação do punycode que polui o terminal em versões novas do Node
 process.removeAllListeners('warning');
 
 import { program } from 'commander';
-import { startInteractive } from '../src/interface.js';
+import { startInteractive } from '../src/interface.jsx';
 import { configure } from '../src/config.js';
 import fs from 'fs';
 import path from 'path';
