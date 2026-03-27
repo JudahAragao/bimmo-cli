@@ -41,7 +41,7 @@ const version = pkg.version;
 
 const Header = ({ config }) => (
   <Box flexDirection="column" marginBottom={1}>
-    <Text color={lavender}>{figlet.textSync('bimmo', { font: 'small' })}</Text>
+    <Text color={lavender}>{figlet.textSync('bimmo')}</Text>
     <Box borderStyle="single" borderColor={lavender} paddingX={1} justifyContent="space-between">
       <Text color={green} bold>v{version}</Text>
       <Box>
