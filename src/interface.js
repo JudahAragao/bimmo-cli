@@ -8,6 +8,7 @@ import path from 'path';
 import mime from 'mime-types';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
+import { stripVTControlCharacters } from 'util';
 
 import { getConfig, configure, updateActiveModel, switchProfile } from './config.js';
 import { createProvider } from './providers/factory.js';
@@ -177,10 +178,16 @@ export async function startInteractive() {
           process.stdout.write(gray(`  ${f.isDir ? '📁' : '📄'} ${f.rel}${f.isDir ? '/' : ''}\n`));
         });
         currentPreviewLines = display.length;
+        
+        // VOLTA CURSOR PARA A POSIÇÃO DE ESCRITA (CÁLCULO PRECISO)
         readline.moveCursor(process.stdout, 0, -(currentPreviewLines + 1));
-        // Reposiciona o cursor de digitação
-        const promptLen = (activePersona ? activePersona.length + 2 : 0) + (currentMode.length + 8) + 3;
-        readline.cursorTo(process.stdout, (promptLen + rl.line.length) % process.stdout.columns);
+        
+        // Obtém o prompt real sem ANSI codes para saber o tamanho visual real
+        const visualPrompt = stripVTControlCharacters(rl.getPrompt());
+        const cursorPos = visualPrompt.length + rl.cursor;
+        const columns = process.stdout.columns || 80;
+        
+        readline.cursorTo(process.stdout, cursorPos % columns);
       } else { clearPreview(); }
     } else { clearPreview(); }
   };
@@ -282,7 +289,8 @@ export async function startInteractive() {
       if (word.startsWith('@')) {
         const filePath = word.slice(1);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-          processedContent.push({ type: 'text', text: `\n[ARQUIVO: ${filePath}]\n${fs.readFileSync(filePath, 'utf-8')}\n` });
+          const content = fs.readFileSync(filePath, 'utf-8');
+          processedContent.push({ type: 'text', text: `\n[ARQUIVO: ${filePath}]\n${content}\n` });
         } else { processedContent.push({ type: 'text', text: word }); }
       } else { processedContent.push({ type: 'text', text: word }); }
     }
