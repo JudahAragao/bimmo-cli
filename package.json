@@ -1,7 +1,7 @@
 {
   "name": "bimmo-cli",
-  "version": "2.2.6",
-  "description": "🌿 Plataforma de IA universal profissional com Agentes e Swarms. Suporte a Autocomplete, Diffs e Contexto Inteligente.",
+  "version": "2.2.7",
+  "description": "🌿 Plataforma de IA universal profissional com Agentes e Swarms. Suporte a Autocomplete, Diffs coloridos e Contexto Inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
   },
@@ -29,6 +29,7 @@
     "conf": "^13.0.0",
     "diff": "^7.0.0",
     "figlet": "^1.7.0",
+    "fuzzy": "^0.1.3",
     "inquirer": "^9.3.8",
     "marked": "^14.0.0",
     "marked-terminal": "^7.0.0",

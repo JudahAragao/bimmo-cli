@@ -18,6 +18,7 @@ export class AnthropicProvider extends BaseProvider {
         type: 'image',
         source: { type: 'base64', media_type: part.mimeType, data: part.data }
       };
+      return part;
     });
   }
 
@@ -51,8 +52,6 @@ export class AnthropicProvider extends BaseProvider {
       
       if (tool) {
         if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
-        
-        console.log(`\n  ${tool.name === 'search_internet' ? '🌐' : '🛠️'}  Executando: ${tool.name}...`);
         const result = await tool.execute(toolUse.input);
         
         const nextMessages = [

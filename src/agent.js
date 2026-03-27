@@ -28,6 +28,7 @@ export const tools = [
     },
     execute: async ({ query }) => {
       if (!tvly) return 'Erro: Chave de API da Tavily não configurada. Use /config para configurar.';
+      console.log(chalk.blue(`\n  🌐  Pesquisando na web: ${chalk.bold(query)}...`));
       const searchResponse = await tvly.search(query, {
         searchDepth: 'advanced',
         maxResults: 5
@@ -51,6 +52,7 @@ export const tools = [
     },
     execute: async ({ path: filePath }) => {
       try {
+        console.log(chalk.blue(`\n  📖  Lendo arquivo: ${chalk.bold(filePath)}...`));
         return fs.readFileSync(filePath, 'utf-8');
       } catch (err) {
         return `Erro ao ler arquivo: ${err.message}`;
@@ -77,7 +79,7 @@ export const tools = [
         const differences = diff.diffLines(oldContent, content);
         
         console.log(`\n${chalk.cyan('📝 Alterações propostas em:')} ${chalk.bold(filePath)}`);
-        console.log(chalk.gray('─'.repeat(40)));
+        console.log(chalk.gray('─'.repeat(50)));
         
         let hasChanges = false;
         differences.forEach((part) => {
@@ -85,20 +87,25 @@ export const tools = [
           const color = part.added ? chalk.green : part.removed ? chalk.red : chalk.gray;
           const prefix = part.added ? '+' : part.removed ? '-' : ' ';
           
-          // Mostra apenas linhas com mudanças ou um pouco de contexto
           if (part.added || part.removed) {
-            process.stdout.write(color(`${prefix} ${part.value}`));
+            // Garante que cada linha tenha o prefixo
+            const lines = part.value.split('\n');
+            lines.forEach(line => {
+              if (line || part.value.endsWith('\n')) {
+                process.stdout.write(color(`${prefix} ${line}\n`));
+              }
+            });
           } else {
             // Mostra apenas as primeiras e últimas linhas de blocos sem mudança para encurtar
-            const lines = part.value.split('\n');
+            const lines = part.value.split('\n').filter(l => l.trim() !== "");
             if (lines.length > 4) {
-              process.stdout.write(color(`  ${lines[0]}\n  ...\n  ${lines[lines.length-2]}\n`));
-            } else {
-              process.stdout.write(color(`  ${part.value}`));
+              process.stdout.write(color(`  ${lines[0]}\n  ...\n  ${lines[lines.length-1]}\n`));
+            } else if (lines.length > 0) {
+              lines.forEach(line => process.stdout.write(color(`  ${line}\n`)));
             }
           }
         });
-        console.log(chalk.gray('\n' + '─'.repeat(40)));
+        console.log(chalk.gray('─'.repeat(50)));
 
         if (!hasChanges) {
           return "Nenhuma mudança detectada no arquivo.";
@@ -143,7 +150,7 @@ export const tools = [
     },
     execute: async ({ command }) => {
       try {
-        console.log(`\n${chalk.yellow('⚠️  Comando proposto:')} ${chalk.bold(command)}`);
+        console.log(chalk.yellow(`\n  ⚡  Comando proposto: ${chalk.bold(command)}`));
         
         if (!editState.autoAccept) {
           const { approve } = await inquirer.prompt([{

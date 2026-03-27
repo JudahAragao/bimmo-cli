@@ -21,12 +21,8 @@ export class OpenAIProvider extends BaseProvider {
 
   formatMessages(messages) {
     return messages.map(msg => {
-      // Se content for string ou null (comum em tool calls), retorna como está
-      if (typeof msg.content === 'string' || msg.content === null) {
-        return msg;
-      }
+      if (typeof msg.content === 'string' || msg.content === null) return msg;
       
-      // Se for um array (multimodal), processa as partes
       if (Array.isArray(msg.content)) {
         const content = msg.content.map(part => {
           if (part.type === 'text') return { type: 'text', text: part.text };
@@ -34,11 +30,10 @@ export class OpenAIProvider extends BaseProvider {
             type: 'image_url',
             image_url: { url: `data:${part.mimeType};base64,${part.data}` }
           };
-          return part; // Mantém outras partes (como tool_result se houver)
+          return part;
         });
         return { ...msg, content };
       }
-
       return msg;
     });
   }
@@ -77,7 +72,6 @@ export class OpenAIProvider extends BaseProvider {
         
         const tool = tools.find(t => t.name === toolCall.function.name);
         if (tool) {
-          console.log(`\n  ${tool.name === 'search_internet' ? '🌐' : '🛠️'}  Executando: ${tool.name}...`);
           const args = JSON.parse(toolCall.function.arguments);
           const result = await tool.execute(args);
           

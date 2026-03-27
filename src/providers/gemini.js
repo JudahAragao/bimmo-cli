@@ -15,6 +15,7 @@ export class GeminiProvider extends BaseProvider {
       if (part.type === 'image') return {
         inlineData: { mimeType: part.mimeType, data: part.data }
       };
+      return part;
     });
   }
 
@@ -58,7 +59,6 @@ export class GeminiProvider extends BaseProvider {
       
       const tool = tools.find(t => t.name === call.functionCall.name);
       if (tool) {
-        console.log(`\n  ${tool.name === 'search_internet' ? '🌐' : '🛠️'}  Executando: ${tool.name}...`);
         const toolResult = await tool.execute(call.functionCall.args);
         
         const resultResponse = await chat.sendMessage([{
