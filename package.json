@@ -1,6 +1,6 @@
 {
   "name": "bimmo-cli",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "🌿 Plataforma de IA universal profissional com interface React (Ink). Agentes, Swarms, Autocomplete real-time e Contexto Inteligente.",
   "scripts": {
     "build": "esbuild src/interface.jsx --bundle --platform=node --format=esm --outfile=dist/interface.js --packages=external"
@@ -30,6 +30,7 @@
   "files": [
     "bin/",
     "src/",
+    "dist/",
     "README.md",
     ".bimmo-context.md"
   ],
