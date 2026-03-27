@@ -1,6 +1,6 @@
 {
   "name": "bimmo-cli",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "🌿 Plataforma de IA universal profissional com interface React (Ink). Agentes, Swarms, Autocomplete real-time e Contexto Inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
