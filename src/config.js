@@ -30,6 +30,7 @@ export async function configure() {
         { name: 'Criar novo perfil de IA', value: 'create' },
         { name: 'Selecionar perfil ativo', value: 'select' },
         { name: 'Gerenciar Agentes Especialistas', value: 'agents' },
+        { name: 'Configurar Idioma', value: 'language' },
         { name: 'Configurar chave Tavily', value: 'tavily' },
         { name: 'Sair', value: 'exit' }
       ]
@@ -37,6 +38,22 @@ export async function configure() {
   ]);
 
   if (action === 'exit') return;
+
+  if (action === 'language') {
+    const { lang } = await inquirer.prompt([{
+      type: 'list',
+      name: 'lang',
+      message: 'Escolha o idioma do sistema:',
+      choices: [
+        { name: 'Português (Brasil)', value: 'pt-BR' },
+        { name: 'English', value: 'en-US' }
+      ],
+      default: config.get('language') || 'pt-BR'
+    }]);
+    config.set('language', lang);
+    console.log(chalk.green(`✓ Idioma definido para: ${lang}`));
+    return;
+  }
 
   if (action === 'agents') return configureAgents();
 

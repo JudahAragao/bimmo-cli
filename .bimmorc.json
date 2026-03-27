@@ -1,0 +1,11 @@
+{
+  "projectName": "bimmo-cli",
+  "rules": [
+    "Siga as convenções existentes.",
+    "Prefira código modular."
+  ],
+  "ignorePatterns": [
+    "node_modules",
+    ".git"
+  ]
+}

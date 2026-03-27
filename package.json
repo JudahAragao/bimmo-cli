@@ -1,7 +1,7 @@
 {
   "name": "bimmo-cli",
-  "version": "2.1.4",
-  "description": "🌿 Plataforma de IA universal com Modo Normal, Agentes e Swarms. Suporte a Diffs coloridos, Auto-Edit (Auto/Manual) e Contexto Inteligente.",
+  "version": "2.2.0",
+  "description": "🌿 Plataforma de IA universal com Modo Normal, Agentes e Swarms. Suporte a Autocomplete de arquivos, Diffs coloridos e Contexto Inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
   },
@@ -18,8 +18,7 @@
     "zai",
     "agent",
     "swarm",
-    "diff",
-    "multimodal",
+    "autocomplete",
     "terminal"
   ],
   "author": "Judah",
@@ -42,7 +41,9 @@
     "conf": "^13.0.0",
     "diff": "^7.0.0",
     "figlet": "^1.7.0",
+    "fuzzy": "^0.1.3",
     "inquirer": "^10.1.0",
+    "inquirer-autocomplete-prompt": "^3.0.1",
     "marked": "^14.0.0",
     "marked-terminal": "^7.0.0",
     "mime-types": "^2.1.35",
