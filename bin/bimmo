@@ -4,14 +4,33 @@
 process.removeAllListeners('warning');
 
 import { program } from 'commander';
-import { startInteractive } from '../src/interface.js';
-import { configure } from '../src/config.js';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Tenta carregar do dist primeiro (produção), depois do src (desenvolvimento)
+let interfaceModule;
+const distPath = path.join(__dirname, '../dist/interface.js');
+const srcPath = path.join(__dirname, '../src/interface.js');
+
+if (fs.existsSync(distPath)) {
+  interfaceModule = await import(pathToFileURL(distPath).href);
+} else {
+  interfaceModule = await import(pathToFileURL(srcPath).href);
+}
+
+const { startInteractive } = interfaceModule;
+
+const configPath = fs.existsSync(path.join(__dirname, '../dist/config.js'))
+  ? path.join(__dirname, '../dist/config.js')
+  : path.join(__dirname, '../src/config.js');
+
+const configModule = await import(pathToFileURL(configPath).href);
+
+const { configure } = configModule;
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
 
 program

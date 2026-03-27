@@ -1,6 +1,6 @@
 {
   "name": "bimmo-cli",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "🌿 Plataforma de IA universal profissional com interface React (Ink) pura.",
   "bin": {
     "bimmo": "bin/bimmo"
@@ -23,6 +23,15 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "build": "rimraf dist && esbuild src/*.js src/**/*.js --format=esm --outdir=dist --platform=node --target=node20",
+    "dev": "node bin/bimmo",
+    "start": "npm run build && node bin/bimmo"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "rimraf": "^6.0.1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
