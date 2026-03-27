@@ -21,7 +21,6 @@ const __dirname = path.dirname(__filename);
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
 const version = pkg.version;
 
-// CONFIGURAÇÃO DO RENDERIZADOR (CORREÇÃO DEFINITIVA DO <P>)
 const terminalRenderer = new TerminalRenderer({
   heading: chalk.hex('#c084fc').bold,
   code: chalk.hex('#00ff9d'),
@@ -29,7 +28,10 @@ const terminalRenderer = new TerminalRenderer({
   em: chalk.italic,
 });
 
-marked.setOptions({ renderer: terminalRenderer });
+marked.use(new TerminalRenderer({
+  heading: chalk.hex('#c084fc').bold,
+  code: chalk.hex('#00ff9d'),
+}));
 
 const green = chalk.hex('#00ff9d');
 const lavender = chalk.hex('#c084fc');
@@ -67,15 +69,14 @@ const i18n = {
 
 function getFilesForCompletion(partialPath) {
   try {
-    const dir = path.dirname(partialPath.startsWith('@') ? partialPath.slice(1) : partialPath) || '.';
-    const base = path.basename(partialPath.startsWith('@') ? partialPath.slice(1) : partialPath);
+    const p = partialPath.startsWith('@') ? partialPath.slice(1) : partialPath;
+    const dir = path.dirname(p) || '.';
+    const base = path.basename(p);
     const files = fs.readdirSync(path.resolve(process.cwd(), dir));
     return files
       .filter(f => f.startsWith(base) && !f.startsWith('.') && f !== 'node_modules')
       .map(f => path.join(dir, f));
-  } catch (e) {
-    return [];
-  }
+  } catch (e) { return []; }
 }
 
 function cleanAIResponse(text) {
@@ -123,11 +124,7 @@ export async function startInteractive() {
 
   console.log(lavender(`👋 ${t.welcome}\n`));
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: true,
-    historySize: 100,
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true, historySize: 100,
     completer: (line) => {
       const words = line.split(' ');
       const lastWord = words[words.length - 1];
@@ -139,7 +136,6 @@ export async function startInteractive() {
     }
   });
 
-  // Handler de saída
   rl.on('SIGINT', () => {
     exitCounter++;
     if (exitCounter === 1) {
@@ -147,17 +143,13 @@ export async function startInteractive() {
       if (exitTimer) clearTimeout(exitTimer);
       exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
       displayPrompt();
-    } else {
-      console.log(lavender('\n👋 BIMMO encerrando sessão.\n'));
-      process.exit(0);
-    }
+    } else { process.exit(0); }
   });
 
   const displayPrompt = () => {
     const personaLabel = activePersona ? `[${activePersona.toUpperCase()}]` : '';
     let modeLabel = `[${currentMode.toUpperCase()}]`;
     if (currentMode === 'edit') modeLabel = editState.autoAccept ? '[EDIT(AUTO)]' : '[EDIT(MANUAL)]';
-    
     console.log(`\n${gray(`📁 ${process.cwd()}`)}`);
     rl.setPrompt(lavender.bold(personaLabel) + (currentMode === 'edit' ? chalk.red.bold(modeLabel) : lavender.bold(modeLabel)) + green(' > '));
     rl.prompt();
@@ -168,45 +160,22 @@ export async function startInteractive() {
   rl.on('line', async (input) => {
     const rawInput = input.trim();
     const cmd = rawInput.toLowerCase();
-
     if (rawInput === '') { displayPrompt(); return; }
 
-    // COMANDOS INTERNOS
     if (cmd === '/exit' || cmd === 'sair') process.exit(0);
     if (cmd === '/chat') { currentMode = 'chat'; displayPrompt(); return; }
     if (cmd === '/plan') { currentMode = 'plan'; displayPrompt(); return; }
     if (cmd === '/edit' || cmd === '/edit manual') { currentMode = 'edit'; editState.autoAccept = false; displayPrompt(); return; }
     if (cmd === '/edit auto') { currentMode = 'edit'; editState.autoAccept = true; displayPrompt(); return; }
-    
     if (cmd === '/clear') { resetMessages(); console.clear(); displayPrompt(); return; }
     if (cmd === '/help') { console.log(gray(t.help)); displayPrompt(); return; }
-    
-    if (cmd === '/init') {
-      const bimmoRcPath = path.join(process.cwd(), '.bimmorc.json');
-      const initialConfig = { projectName: path.basename(process.cwd()), rules: ["Clean code"], ignorePatterns: ["node_modules"] };
-      fs.writeFileSync(bimmoRcPath, JSON.stringify(initialConfig, null, 2));
-      console.log(green(`\n✅ .bimmorc.json criado.`));
-      resetMessages();
-      displayPrompt();
-      return;
-    }
 
-    if (cmd === '/config') {
-      rl.pause();
-      await configure();
-      config = getConfig();
-      provider = createProvider(config);
-      rl.resume();
-      displayPrompt();
-      return;
-    }
+    if (cmd === '/config') { rl.pause(); await configure(); config = getConfig(); provider = createProvider(config); rl.resume(); displayPrompt(); return; }
 
     if (cmd.startsWith('/switch ')) {
       const pName = rawInput.split(' ')[1];
-      if (switchProfile(pName)) {
-        config = getConfig(); provider = createProvider(config);
-        console.log(green(`\n✓ ${t.switchOk}`));
-      } else { console.log(chalk.red(`\n✖ Perfil não encontrado.`)); }
+      if (switchProfile(pName)) { config = getConfig(); provider = createProvider(config); console.log(green(`\n✓ ${t.switchOk}`)); }
+      else { console.log(chalk.red(`\n✖ Perfil não encontrado.`)); }
       displayPrompt(); return;
     }
 
@@ -225,6 +194,23 @@ export async function startInteractive() {
       displayPrompt(); return;
     }
 
+    // LÓGICA ESPECIAL /INIT
+    let finalInput = rawInput;
+    if (cmd === '/init') {
+      console.log(chalk.cyan('\n🚀 Analisando projeto para gerar .bimmorc.json inteligente...\n'));
+      finalInput = `Analise a estrutura atual deste projeto e crie um arquivo chamado .bimmorc.json na raiz. 
+O arquivo DEVE seguir esta estrutura JSON estritamente:
+{
+  "projectName": "nome-do-projeto",
+  "rules": ["lista de no mínimo 5 regras de codificação baseadas no que você viu no código"],
+  "techStack": ["lista de tecnologias detectadas"],
+  "architecture": "descrição da arquitetura",
+  "ignorePatterns": ["pastas a ignorar"]
+}
+Use a ferramenta write_file para salvar o arquivo. Depois de salvar, explique brevemente as decisões.`;
+      currentMode = 'edit'; // Forçamos modo edit para que a IA possa salvar o arquivo
+    }
+
     // PROCESSAMENTO IA
     const controller = new AbortController();
     const abortHandler = () => controller.abort();
@@ -234,9 +220,8 @@ export async function startInteractive() {
     if (currentMode === 'plan') modeInstr = "\n[MODO PLAN] Apenas analise.";
     else if (currentMode === 'edit') modeInstr = `\n[MODO EDIT] Auto-Accept: ${editState.autoAccept ? 'ON' : 'OFF'}`;
 
-    // Processar anexos @
     const processedContent = [];
-    const words = rawInput.split(' ');
+    const words = finalInput.split(' ');
     for (const word of words) {
       if (word.startsWith('@')) {
         const filePath = word.slice(1);
@@ -248,19 +233,16 @@ export async function startInteractive() {
     }
 
     messages.push({ role: 'user', content: [...processedContent, { type: 'text', text: modeInstr }] });
-
     const spinner = ora({ text: lavender(`${t.thinking} (Ctrl+C para parar)`), color: currentMode === 'edit' ? 'red' : 'magenta' }).start();
 
     try {
       let responseText = await provider.sendMessage(messages, { signal: controller.signal });
       spinner.stop();
-
       const cleanedText = cleanAIResponse(responseText);
       messages.push({ role: 'assistant', content: responseText });
-
       console.log(`\n${lavender('bimmo ')}${currentMode.toUpperCase()}`);
       console.log(lavender('─'.repeat(50)));
-      console.log(marked.parse(cleanedText)); // Usamos parse para garantir o renderer terminal
+      console.log(marked.parse(cleanedText));
       console.log(gray('─'.repeat(50)));
     } catch (err) {
       spinner.stop();
