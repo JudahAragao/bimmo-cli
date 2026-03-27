@@ -8,6 +8,7 @@ import path from 'path';
 import mime from 'mime-types';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
+import { stripVTControlCharacters } from 'util';
 
 import { getConfig, configure, updateActiveModel, switchProfile } from './config.js';
 import { createProvider } from './providers/factory.js';
@@ -39,9 +40,6 @@ let activePersona = null;
 let exitCounter = 0;
 let exitTimer = null;
 
-/**
- * Coleta arquivos para preview e completion (Nível Gemini-CLI)
- */
 function getFilesForPreview(partialPath) {
   try {
     let p = partialPath.startsWith('@') ? partialPath.slice(1) : partialPath;
@@ -127,37 +125,44 @@ export async function startInteractive() {
 
   const clearPreview = () => {
     if (currentPreviewLines > 0) {
-      // Move para baixo, limpa cada linha e volta
+      // Move o cursor para o início da primeira linha de preview
+      readline.moveCursor(process.stdout, 0, 1);
       for (let i = 0; i < currentPreviewLines; i++) {
-        process.stdout.write('\n');
         readline.clearLine(process.stdout, 0);
+        readline.moveCursor(process.stdout, 0, 1);
       }
-      readline.moveCursor(process.stdout, 0, -currentPreviewLines);
+      // Volta o cursor para a posição original
+      readline.moveCursor(process.stdout, 0, -(currentPreviewLines + 1));
       currentPreviewLines = 0;
     }
   };
 
   const showPreview = () => {
-    clearPreview();
     const words = rl.line.split(' ');
     const lastWord = words[words.length - 1];
     
     if (lastWord.startsWith('@')) {
       const files = getFilesForPreview(lastWord);
       if (files.length > 0) {
-        // Salva a posição do cursor
-        process.stdout.write('\u001b[s'); 
-        
-        process.stdout.write('\n');
+        clearPreview();
         const displayFiles = files.slice(0, 10);
+        
+        // Move cursor para o final da linha atual e pula linha
+        process.stdout.write('\n');
         displayFiles.forEach(f => {
           process.stdout.write(gray(`  ${f.isDir ? '📁' : '📄'} ${f.name}\n`));
         });
-        currentPreviewLines = displayFiles.length + 1;
+        currentPreviewLines = displayFiles.length;
         
-        // Restaura a posição do cursor
-        process.stdout.write('\u001b[u');
+        // Retorna o cursor para a posição exata de escrita
+        readline.moveCursor(process.stdout, 0, -(currentPreviewLines + 1));
+        const promptWidth = stripVTControlCharacters(rl.getPrompt()).length;
+        readline.cursorTo(process.stdout, (promptWidth + rl.line.length) % (process.stdout.columns || 80));
+      } else {
+        clearPreview();
       }
+    } else {
+      clearPreview();
     }
   };
 
@@ -171,22 +176,7 @@ export async function startInteractive() {
     rl.prompt();
   };
 
-  process.stdin.on('keypress', (s, key) => {
-    if (key && (key.name === 'return' || key.name === 'enter')) return;
-    setImmediate(() => showPreview());
-  });
-
-  rl.on('SIGINT', () => {
-    if (exitCounter === 0) {
-      exitCounter++;
-      process.stdout.write(`\n${gray('(Pressione Ctrl+C novamente para sair)')}\n`);
-      exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
-      displayPrompt();
-    } else { process.exit(0); }
-  });
-
-  displayPrompt();
-
+  // Escuta teclas de forma segura
   rl.on('line', async (input) => {
     clearPreview();
     const rawInput = input.trim();
@@ -220,7 +210,6 @@ export async function startInteractive() {
     // PROCESSAMENTO IA
     const controller = new AbortController();
     const abortHandler = () => controller.abort();
-    process.removeListener('SIGINT', () => {}); 
     process.on('SIGINT', abortHandler);
 
     let modeInstr = "";
@@ -258,4 +247,21 @@ export async function startInteractive() {
       displayPrompt();
     }
   });
+
+  // Listener de tecla para o preview
+  process.stdin.on('keypress', (s, key) => {
+    if (key && (key.name === 'return' || key.name === 'enter')) return;
+    setImmediate(() => showPreview());
+  });
+
+  rl.on('SIGINT', () => {
+    if (exitCounter === 0) {
+      exitCounter++;
+      process.stdout.write(`\n${gray('(Pressione novamente para sair)')}\n`);
+      exitTimer = setTimeout(() => { exitCounter = 0; }, 2000);
+      displayPrompt();
+    } else { process.exit(0); }
+  });
+
+  displayPrompt();
 }
