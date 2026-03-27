@@ -1,16 +1,20 @@
 {
   "name": "bimmo-cli",
-  "version": "2.2.13",
-  "description": "🌿 Plataforma de IA universal profissional com Agentes e Swarms. Suporte a Autocomplete real-time sólido, Diffs e Contexto Inteligente.",
+  "version": "3.0.0",
+  "description": "🌿 Plataforma de IA universal profissional com interface React (Ink). Agentes, Swarms, Autocomplete real-time e Contexto Inteligente.",
   "bin": {
     "bimmo": "bin/bimmo"
   },
   "type": "module",
   "keywords": [
-    "ai", "cli", "openai", "anthropic", "gemini", "grok", "deepseek", "openrouter", "zai", "agent", "swarm", "terminal"
+    "ai", "cli", "ink", "react", "openai", "anthropic", "gemini", "agent", "swarm", "terminal"
   ],
   "author": "Judah",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JudahAragao/bimmo-cli.git"
+  },
   "files": [
     "bin/",
     "src/",
@@ -30,6 +34,10 @@
     "diff": "^7.0.0",
     "figlet": "^1.7.0",
     "fuzzy": "^0.1.3",
+    "ink": "^5.1.0",
+    "ink-divider": "^3.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
     "inquirer": "^9.3.8",
     "marked": "^14.0.0",
     "marked-terminal": "^7.0.0",
@@ -37,6 +45,7 @@
     "ollama": "^0.5.12",
     "openai": "^4.82.0",
     "ora": "^8.1.1",
+    "react": "^18.2.0",
     "zod": "^3.24.1"
   }
 }
