@@ -507,11 +507,7 @@ export async function startInteractive() {
     console.log(chalk.gray('Execute "bimmo config" para configurar sua chave de API.\n'));
     process.exit(0);
   }
-  
+
   process.stdout.write('\x1Bc');
   render(h(BimmoApp, { initialConfig: config }), { exitOnCtrlC: false });
-}
-false });
-}
-lse });
 }
