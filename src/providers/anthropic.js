@@ -22,7 +22,8 @@ export class AnthropicProvider extends BaseProvider {
     });
   }
 
-  async sendMessage(messages, options = {}) {
+  async sendMessage(messages, options = {}, toolCallCount = 0) {
+    const MAX_TOOL_CALLS = 10;
     const systemMessage = messages.find(m => m.role === 'system');
     const userMessages = messages
       .filter(m => m.role !== 'system')
@@ -47,6 +48,10 @@ export class AnthropicProvider extends BaseProvider {
     }, { signal: options.signal });
 
     if (response.stop_reason === 'tool_use') {
+      if (toolCallCount >= MAX_TOOL_CALLS) {
+        return "Erro: Limite de chamadas de ferramentas atingido (segurança). Verifique se a IA entrou em loop.";
+      }
+
       const toolUseParts = response.content.filter(p => p.type === 'tool_use');
       const toolResults = [];
 
@@ -72,7 +77,7 @@ export class AnthropicProvider extends BaseProvider {
         }
       ];
       
-      return this.sendMessage(nextMessages, options);
+      return this.sendMessage(nextMessages, options, toolCallCount + 1);
     }
 
     return response.content.find(p => p.type === 'text')?.text || "";

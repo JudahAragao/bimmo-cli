@@ -1,6 +1,6 @@
 {
   "name": "bimmo-cli",
-  "version": "4.2.5",
+  "version": "4.3.0",
   "description": "🌿 Plataforma de IA universal profissional com interface React (Ink) pura.",
   "bin": {
     "bimmo": "bin/bimmo"

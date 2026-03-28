@@ -59,50 +59,38 @@ export class GeminiProvider extends BaseProvider {
     if (toolCalls.length > 0) {
       if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
       
-      const functionResponses = [];
-      for (const call of toolCalls) {
-        const tool = tools.find(t => t.name === call.functionCall.name);
-        if (tool) {
-          const toolResult = await tool.execute(call.functionCall.args, options);
-          functionResponses.push({
-            functionResponse: {
-              name: call.functionCall.name,
-              response: { content: toolResult }
-            }
-          });
-        }
-      }
+      let currentResponse = response;
+      let callCount = 0;
+      const MAX_TOOL_CALLS = 10;
 
-      const resultResponse = await chat.sendMessage(functionResponses);
-      const nextResponse = await resultResponse.response;
-      
-      // Se o próximo turno também tiver chamadas de função, precisamos de recursão.
-      // No entanto, a API do Gemini lida com o histórico dentro do chat.
-      // Vamos verificar se há mais chamadas.
-      const moreToolCalls = nextResponse.candidates[0].content.parts.filter(p => p.functionCall);
-      if (moreToolCalls.length > 0) {
-        // Para manter a simplicidade e recursão similar ao OpenAI:
-        // Mas o sendMessage do Gemini retorna a resposta final.
-        // Vamos tentar processar recursivamente se necessário.
-        // A forma mais robusta é um loop.
-        let currentResponse = nextResponse;
-        while (currentResponse.candidates[0].content.parts.some(p => p.functionCall)) {
-             const nextCalls = currentResponse.candidates[0].content.parts.filter(p => p.functionCall);
-             const nextResponses = [];
-             for (const call of nextCalls) {
-                const t = tools.find(tool => tool.name === call.functionCall.name);
-                if (t) {
-                   const r = await t.execute(call.functionCall.args, options);
-                   nextResponses.push({ functionResponse: { name: call.functionCall.name, response: { content: r } } });
-                }
-             }
-             const rRes = await chat.sendMessage(nextResponses);
-             currentResponse = await rRes.response;
+      while (currentResponse.candidates[0].content.parts.some(p => p.functionCall)) {
+        if (callCount >= MAX_TOOL_CALLS) {
+          return "Erro: Limite de chamadas de ferramentas atingido (segurança). Verifique se a IA entrou em loop.";
         }
-        return currentResponse.text();
+        
+        const nextCalls = currentResponse.candidates[0].content.parts.filter(p => p.functionCall);
+        const nextResponses = [];
+        
+        for (const call of nextCalls) {
+          if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
+          const t = tools.find(tool => tool.name === call.functionCall.name);
+          if (t) {
+            const r = await t.execute(call.functionCall.args, options);
+            nextResponses.push({ 
+              functionResponse: { 
+                name: call.functionCall.name, 
+                response: { content: String(r) } 
+              } 
+            });
+          }
+        }
+        
+        callCount++;
+        const rRes = await chat.sendMessage(nextResponses);
+        currentResponse = await rRes.response;
       }
       
-      return nextResponse.text();
+      return currentResponse.text();
     }
 
     return response.text();

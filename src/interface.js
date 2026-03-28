@@ -69,18 +69,35 @@ const Header = ({ config }) => (
   )
 );
 
-const Message = ({ role, content, displayContent }) => {
+const Message = ({ role, content, displayContent, type, diff, output, message }) => {
   const isUser = role === 'user';
-  const color = isUser ? THEME.green : THEME.lavender;
-  const label = isUser ? '› VOCÊ' : '› bimmo';
+  const color = isUser ? THEME.green : role === 'system' ? THEME.yellow : THEME.lavender;
+  const label = isUser ? '› VOCÊ' : role === 'system' ? '› SISTEMA' : '› bimmo';
+
+  if (type === 'tool') {
+    return h(Box, { flexDirection: 'column', marginBottom: 1, paddingLeft: 2 },
+      h(Box, null,
+        h(Text, { color: THEME.yellow, bold: true }, `[${message.toUpperCase()}] `),
+      ),
+      diff && h(Box, { marginTop: 0, flexDirection: 'column' },
+        diff.split('\n').map((line, i) => {
+          let color = THEME.gray;
+          if (line.startsWith('+')) color = THEME.green;
+          if (line.startsWith('-')) color = THEME.red;
+          return h(Text, { key: i, color }, line);
+        })
+      ),
+      output && h(Box, { marginTop: 0 },
+        h(Text, { color: THEME.gray, dimColor: true }, output)
+      )
+    );
+  }
 
   const renderUserContent = (text) => {
     if (typeof text !== 'string') return text;
-    // Regex melhorado para capturar @arquivo.ext ou @caminho/arquivo.ext
     const parts = text.split(/(@[\w\.\-\/]+)/g);
     return parts.map((part, i) => {
       if (part.startsWith('@')) {
-        // Usando Amarelo para destacar do texto branco/cinza
         return h(Text, { key: i, color: THEME.yellow, bold: true }, part);
       }
       return h(Text, { key: i }, part);
@@ -90,7 +107,7 @@ const Message = ({ role, content, displayContent }) => {
   return h(Box, { flexDirection: 'column', marginBottom: 1 },
     h(Box, null,
       h(Text, { color, bold: true }, label),
-      role === 'system' && h(Text, { color: THEME.yellow }, ' [SISTEMA]')
+      role === 'system' && !type && h(Text, { color: THEME.yellow }, ' [AVISO]')
     ),
     h(Box, { paddingLeft: 2 },
       h(Text, null, 
@@ -138,23 +155,14 @@ const FooterStatus = ({ mode, activePersona, exitCounter }) => (
 
 const ToolDisplay = ({ status }) => {
   if (!status) return null;
-  const { type, message, diff, output } = status;
+  const { type, message } = status;
   
+  if (type === 'diff' || type === 'command_output') return null;
+
   return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: THEME.gray, paddingX: 1, marginBottom: 1 },
     h(Box, null,
       h(Text, { color: THEME.yellow, bold: true }, `[${type.toUpperCase()}] `),
       h(Text, null, message)
-    ),
-    diff && h(Box, { marginTop: 1, flexDirection: 'column' },
-      diff.split('\n').map((line, i) => {
-        let color = THEME.gray;
-        if (line.startsWith('+')) color = THEME.green;
-        if (line.startsWith('-')) color = THEME.red;
-        return h(Text, { key: i, color }, line);
-      })
-    ),
-    output && h(Box, { marginTop: 1, maxHeight: 10 },
-      h(Text, { color: THEME.gray, dimColor: true }, output)
     )
   );
 };
@@ -200,8 +208,8 @@ const BimmoApp = ({ initialConfig }) => {
 
   useEffect(() => {
     const ctx = getProjectContext();
-    setMessages([
-      { role: 'system', content: ctx },
+    setMessages([{ role: 'system', content: ctx }]);
+    setStaticMessages([
       { role: 'assistant', content: `Olá! Sou o **bimmo v${version}**. Como posso ajudar hoje?\n\nDigite \`/help\` para ver os comandos.` }
     ]);
   }, []);
@@ -297,7 +305,7 @@ const BimmoApp = ({ initialConfig }) => {
     }
 
     if (cmd === '/help') {
-      setMessages(prev => [...prev, { role: 'assistant', content: `**Comandos Disponíveis:**\n\n- \`/chat\`, \`/plan\`, \`/edit\`: Alternar modos\n- \`/model <nome>\`: Trocar modelo atual\n- \`/switch <perfil>\`: Trocar perfil de API\n- \`/use <agente>\`: Usar agente especializado\n- \`/clear\`: Limpar histórico\n- \`/exit\`: Sair do bimmo\n- \`@arquivo\`: Referenciar arquivo local` }]);
+      setStaticMessages(prev => [...prev, { role: 'assistant', content: `**Comandos Disponíveis:**\n\n- \`/chat\`, \`/plan\`, \`/edit\`: Alternar modos\n- \`/model <nome>\`: Trocar modelo atual\n- \`/switch <perfil>\`: Trocar perfil de API\n- \`/use <agente>\`: Usar agente especializado\n- \`/clear\`: Limpar histórico\n- \`/exit\`: Sair do bimmo\n- \`@arquivo\`: Referenciar arquivo local` }]);
       return;
     }
 
@@ -317,16 +325,11 @@ const BimmoApp = ({ initialConfig }) => {
     }
 
     const userMsg = { role: 'user', content: processedInput, displayContent: rawInput };
-    
-    if (messages.length > 5) {
-      setStaticMessages(prev => [...prev, ...messages.slice(0, -5)]);
-      setMessages(prev => [...prev.slice(-5), userMsg]);
-    } else {
-      setMessages(prev => [...prev, userMsg]);
-    }
+    setStaticMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
 
     try {
-      let finalMessages = [...staticMessages, ...messages, userMsg];
+      let finalMessages = [...messages, userMsg];
       if (activePersona && config.agents[activePersona]) {
         const agent = config.agents[activePersona];
         finalMessages = [{ role: 'system', content: `Sua tarefa: ${agent.role}\n\n${getProjectContext()}` }, ...finalMessages.filter(m => m.role !== 'system')];
@@ -338,8 +341,12 @@ const BimmoApp = ({ initialConfig }) => {
       const options = {
         signal: abortController.signal,
         onStatus: (status) => {
-          setToolStatus(status);
-          if (status.message) setThinkingMessage(status.message);
+          if (status.type === 'diff' || status.type === 'command_output') {
+            setStaticMessages(prev => [...prev, { role: 'system', type: 'tool', ...status }]);
+          } else {
+            setToolStatus(status);
+            if (status.message) setThinkingMessage(status.message);
+          }
         },
         onConfirm: (message) => {
           return new Promise((resolve) => {
@@ -349,12 +356,16 @@ const BimmoApp = ({ initialConfig }) => {
       };
 
       const response = await provider.sendMessage(finalMessages, options);
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      const assistantMsg = { role: 'assistant', content: response };
+      setStaticMessages(prev => [...prev, assistantMsg]);
+      setMessages(prev => [...prev, assistantMsg]);
     } catch (err) {
       if (err.name === 'AbortError' || err.message === 'Abortado pelo usuário') {
-        // Interrupção silenciosa já adicionada no useInput
+        // Interrupção silenciosa
       } else {
-        setMessages(prev => [...prev, { role: 'system', content: `Erro: ${err.message}` }]);
+        const errMsg = { role: 'system', content: `Erro: ${err.message}` };
+        setStaticMessages(prev => [...prev, errMsg]);
+        setMessages(prev => [...prev, errMsg]);
       }
     } finally {
       setIsThinking(false);
@@ -385,7 +396,9 @@ const BimmoApp = ({ initialConfig }) => {
           abortControllerRef.current.abort();
         }
         setIsThinking(false);
-        setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
+        const interruptMsg = { role: 'system', content: 'Interrompido pelo usuário.' };
+        setStaticMessages(prev => [...prev, interruptMsg]);
+        setMessages(prev => [...prev, interruptMsg]);
         setExitCounter(0);
         exitCounterRef.current = 0;
         return;
@@ -425,8 +438,7 @@ const BimmoApp = ({ initialConfig }) => {
       h(Header, { config }),
       
       h(Box, { flexDirection: 'column', flexGrow: 1, marginBottom: 1 },
-        h(Static, { items: staticMessages }, (m, i) => h(Message, { key: `static-${i}`, ...m })),
-        messages.filter(m => m.role !== 'system').map((m, i) => h(Message, { key: i, ...m }))
+        h(Static, { items: staticMessages }, (m, i) => h(Message, { key: `static-${i}`, ...m }))
       ),
 
       isThinking && h(Box, { marginBottom: 1, flexDirection: 'column' },
@@ -450,7 +462,8 @@ const BimmoApp = ({ initialConfig }) => {
         ))
       ),
 
-      h(Box, { borderStyle: 'round', borderColor: isThinking ? THEME.gray : THEME.lavender, paddingX: 1 },        h(Text, { bold: true, color: mode === 'edit' ? THEME.red : mode === 'plan' ? THEME.cyan : THEME.lavender },
+      h(Box, { borderStyle: 'round', borderColor: isThinking ? THEME.gray : THEME.lavender, paddingX: 1 },
+        h(Text, { bold: true, color: mode === 'edit' ? THEME.red : mode === 'plan' ? THEME.cyan : THEME.lavender },
           `${activePersona ? `[${activePersona.toUpperCase()}] ` : ''}› `
         ),
         h(TextInput, { 

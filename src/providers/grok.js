@@ -33,7 +33,8 @@ export class GrokProvider extends BaseProvider {
     });
   }
 
-  async sendMessage(messages, options = {}) {
+  async sendMessage(messages, options = {}, toolCallCount = 0) {
+    const MAX_TOOL_CALLS = 10;
     const formattedMessages = this.formatMessages(messages);
     
     const openAiTools = tools.map(t => ({
@@ -61,6 +62,10 @@ export class GrokProvider extends BaseProvider {
     const message = response.choices[0].message;
 
     if (message.tool_calls) {
+      if (toolCallCount >= MAX_TOOL_CALLS) {
+        return "Erro: Limite de chamadas de ferramentas atingido (segurança). Verifique se a IA entrou em loop.";
+      }
+
       const toolResults = [];
       for (const toolCall of message.tool_calls) {
         if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
@@ -79,7 +84,7 @@ export class GrokProvider extends BaseProvider {
       }
 
       const nextMessages = [...formattedMessages, message, ...toolResults];
-      return this.sendMessage(nextMessages, options);
+      return this.sendMessage(nextMessages, options, toolCallCount + 1);
     }
 
     return message.content;
