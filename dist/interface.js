@@ -86,14 +86,14 @@ const Message = ({ role, content, displayContent }) => {
     )
   );
 };
-const AutocompleteSuggestions = ({ suggestions }) => h(
+const AutocompleteSuggestions = ({ suggestions, selectedIndex }) => h(
   Box,
   { flexDirection: "column", borderStyle: "round", borderColor: THEME.border, paddingX: 1, marginBottom: 1 },
-  h(Text, { color: THEME.gray, dimColor: true, italic: true }, "Sugest\xF5es (TAB):"),
+  h(Text, { color: THEME.gray, dimColor: true, italic: true }, "Sugest\xF5es (\u2191\u2193 navega, TAB seleciona):"),
   suggestions.map((f, i) => h(
     Text,
-    { key: i, color: i === 0 ? THEME.green : THEME.gray },
-    `${f.isDir ? "\u{1F4C1}" : "\u{1F4C4}"} ${f.rel}${f.isDir ? "/" : ""}`
+    { key: i, color: i === selectedIndex ? THEME.green : THEME.gray, bold: i === selectedIndex },
+    `${i === selectedIndex ? "\u203A " : "  "}${f.isDir ? "\u{1F4C1}" : "\u{1F4C4}"} ${f.rel}${f.isDir ? "/" : ""}`
   ))
 );
 const FooterStatus = ({ mode, activePersona, exitCounter }) => h(
@@ -122,6 +122,7 @@ const BimmoApp = ({ initialConfig }) => {
   const [messages, setMessages] = useState([]);
   const [staticMessages, setStaticMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingMessage, setThinkingMessage] = useState("bimmo pensando...");
   const [exitCounter, setExitCounter] = useState(0);
@@ -155,6 +156,9 @@ Digite \`/help\` para ver os comandos.` }
       return [];
     }
   }, [input]);
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filePreview.length]);
   const handleSubmit = async (val) => {
     const rawInput = val.trim();
     if (!rawInput) return;
@@ -273,9 +277,18 @@ ${getProjectContext()}` }, ...finalMessages.filter((m) => m.role !== "system")];
       }
     }
     if (key.tab && filePreview.length > 0) {
+      const selected = filePreview[selectedIndex] || filePreview[0];
       const words = input2.split(" ");
-      words[words.length - 1] = `@${filePreview[0].rel}${filePreview[0].isDir ? "/" : ""}`;
+      words[words.length - 1] = `@${selected.rel}${selected.isDir ? "/" : ""}`;
       setInput(words.join(" "));
+    }
+    if (filePreview.length > 0) {
+      if (key.downArrow) {
+        setSelectedIndex((prev) => (prev + 1) % filePreview.length);
+      }
+      if (key.upArrow) {
+        setSelectedIndex((prev) => (prev - 1 + filePreview.length) % filePreview.length);
+      }
     }
   });
   return h(
@@ -298,7 +311,7 @@ ${getProjectContext()}` }, ...finalMessages.filter((m) => m.role !== "system")];
         h(Text, { italic: true }, ` ${thinkingMessage}`)
       )
     ),
-    filePreview.length > 0 && h(AutocompleteSuggestions, { suggestions: filePreview }),
+    filePreview.length > 0 && h(AutocompleteSuggestions, { suggestions: filePreview, selectedIndex }),
     h(
       Box,
       { borderStyle: "round", borderColor: isThinking ? THEME.gray : THEME.lavender, paddingX: 1 },

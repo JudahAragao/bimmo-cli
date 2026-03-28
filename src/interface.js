@@ -90,12 +90,12 @@ const Message = ({ role, content, displayContent }) => {
   );
 };
 
-const AutocompleteSuggestions = ({ suggestions }) => (
+const AutocompleteSuggestions = ({ suggestions, selectedIndex }) => (
   h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: THEME.border, paddingX: 1, marginBottom: 1 },
-    h(Text, { color: THEME.gray, dimColor: true, italic: true }, 'Sugestões (TAB):'),
+    h(Text, { color: THEME.gray, dimColor: true, italic: true }, 'Sugestões (↑↓ navega, TAB seleciona):'),
     suggestions.map((f, i) => (
-      h(Text, { key: i, color: i === 0 ? THEME.green : THEME.gray },
-        `${f.isDir ? '📁' : '📄'} ${f.rel}${f.isDir ? '/' : ''}`
+      h(Text, { key: i, color: i === selectedIndex ? THEME.green : THEME.gray, bold: i === selectedIndex },
+        `${i === selectedIndex ? '› ' : '  '}${f.isDir ? '📁' : '📄'} ${f.rel}${f.isDir ? '/' : ''}`
       )
     ))
   )
@@ -128,6 +128,7 @@ const BimmoApp = ({ initialConfig }) => {
   const [messages, setMessages] = useState([]);
   const [staticMessages, setStaticMessages] = useState([]); // Para mensagens antigas
   const [input, setInput] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingMessage, setThinkingMessage] = useState('bimmo pensando...');
   const [exitCounter, setExitCounter] = useState(0);
@@ -162,6 +163,10 @@ const BimmoApp = ({ initialConfig }) => {
         }));
     } catch (e) { return []; }
   }, [input]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filePreview.length]);
 
   const handleSubmit = async (val) => {
     const rawInput = val.trim();
@@ -278,9 +283,19 @@ const BimmoApp = ({ initialConfig }) => {
       }
     }
     if (key.tab && filePreview.length > 0) {
+      const selected = filePreview[selectedIndex] || filePreview[0];
       const words = input.split(' ');
-      words[words.length - 1] = `@${filePreview[0].rel}${filePreview[0].isDir ? '/' : ''}`;
+      words[words.length - 1] = `@${selected.rel}${selected.isDir ? '/' : ''}`;
       setInput(words.join(' '));
+    }
+
+    if (filePreview.length > 0) {
+      if (key.downArrow) {
+        setSelectedIndex(prev => (prev + 1) % filePreview.length);
+      }
+      if (key.upArrow) {
+        setSelectedIndex(prev => (prev - 1 + filePreview.length) % filePreview.length);
+      }
     }
   });
 
@@ -300,10 +315,9 @@ const BimmoApp = ({ initialConfig }) => {
         )
       ),
 
-      filePreview.length > 0 && h(AutocompleteSuggestions, { suggestions: filePreview }),
-      
-      h(Box, { borderStyle: 'round', borderColor: isThinking ? THEME.gray : THEME.lavender, paddingX: 1 },
-        h(Text, { bold: true, color: mode === 'edit' ? THEME.red : mode === 'plan' ? THEME.cyan : THEME.lavender },
+      filePreview.length > 0 && h(AutocompleteSuggestions, { suggestions: filePreview, selectedIndex }),
+
+      h(Box, { borderStyle: 'round', borderColor: isThinking ? THEME.gray : THEME.lavender, paddingX: 1 },        h(Text, { bold: true, color: mode === 'edit' ? THEME.red : mode === 'plan' ? THEME.cyan : THEME.lavender },
           `${activePersona ? `[${activePersona.toUpperCase()}] ` : ''}› `
         ),
         h(TextInput, { 
