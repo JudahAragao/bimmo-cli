@@ -203,14 +203,6 @@ const BimmoApp = ({ initialConfig }) => {
   }, [confirmation]);
 
   useEffect(() => {
-    const handleSigInt = () => {
-      // Ignora o sinal SIGINT para permitir que o useInput trate o Ctrl+C
-    };
-    process.on('SIGINT', handleSigInt);
-    return () => process.off('SIGINT', handleSigInt);
-  }, []);
-
-  useEffect(() => {
     const ctx = getProjectContext();
     setMessages([
       { role: 'system', content: ctx },
@@ -483,5 +475,5 @@ export async function startInteractive() {
   }
   
   process.stdout.write('\x1Bc');
-  render(h(BimmoApp, { initialConfig: config }));
+  render(h(BimmoApp, { initialConfig: config }), { exitOnCtrlC: false });
 }
