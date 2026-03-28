@@ -185,6 +185,7 @@ const BimmoApp = ({ initialConfig }) => {
   const [confirmation, setConfirmation] = useState(null); 
   const confirmationRef = useRef(null);
   const [exitCounter, setExitCounter] = useState(0);
+  const exitCounterRef = useRef(0);
   const isThinkingRef = useRef(false);
   const [provider, setProvider] = useState(() => createProvider(initialConfig));
   const abortControllerRef = useRef(null);
@@ -364,13 +365,13 @@ const BimmoApp = ({ initialConfig }) => {
     }
   };
 
-  useInput((input, key) => {
+  useInput((char, key) => {
     if (confirmationRef.current) {
-      if (input.toLowerCase() === 'y' || key.return) {
+      if (char.toLowerCase() === 'y' || key.return) {
         const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
         resolve(true);
-      } else if (input.toLowerCase() === 'n' || key.escape) {
+      } else if (char.toLowerCase() === 'n' || key.escape) {
         const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
         resolve(false);
@@ -378,7 +379,7 @@ const BimmoApp = ({ initialConfig }) => {
       return;
     }
 
-    if (key.ctrl && input === 'c') {
+    if (key.ctrl && char === 'c') {
       if (isThinkingRef.current) {
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
@@ -386,18 +387,20 @@ const BimmoApp = ({ initialConfig }) => {
         setIsThinking(false);
         setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
         setExitCounter(0);
+        exitCounterRef.current = 0;
         return;
       } 
       
-      setExitCounter(prev => {
-        if (prev === 0) {
-          setTimeout(() => setExitCounter(0), 3000);
-          return 1;
-        } else {
-          exit();
-          return prev;
-        }
-      });
+      exitCounterRef.current++;
+      if (exitCounterRef.current === 1) {
+        setExitCounter(1);
+        setTimeout(() => {
+          exitCounterRef.current = 0;
+          setExitCounter(0);
+        }, 3000);
+      } else {
+        process.exit(0);
+      }
       return;
     }
     if (key.tab && filePreview.length > 0) {
