@@ -80,17 +80,21 @@ export const tools = [
         differences.forEach((part) => {
           if (part.added || part.removed) hasChanges = true;
           const prefix = part.added ? '+' : part.removed ? '-' : ' ';
-          const lines = part.value.split('\n');
+          const lines = part.value.split('\n').filter(l => l !== '' || part.value.endsWith('\n'));
           
           if (part.added || part.removed) {
-            lines.forEach(line => {
-              if (line || part.value.endsWith('\n')) {
-                diffString += `${prefix} ${line}\n`;
-              }
-            });
+            if (lines.length > 20) {
+              // Resumo de grandes blocos de código
+              lines.slice(0, 5).forEach(line => { diffString += `${prefix} ${line}\n` });
+              diffString += `${prefix} ... (${lines.length - 10} linhas ocultas) ...\n`;
+              lines.slice(-5).forEach(line => { if (line) diffString += `${prefix} ${line}\n` });
+            } else {
+              lines.forEach(line => { diffString += `${prefix} ${line}\n` });
+            }
           } else {
+            // Contexto (linhas não alteradas)
             if (lines.length > 4) {
-              diffString += `  ${lines[0]}\n  ...\n  ${lines[lines.length-2]}\n`;
+              diffString += `  ${lines[0]}\n  ...\n  ${lines[lines.length-1]}\n`;
             } else {
               lines.forEach(line => { if (line) diffString += `  ${line}\n` });
             }
