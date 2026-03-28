@@ -183,9 +183,24 @@ const BimmoApp = ({ initialConfig }) => {
   const [thinkingMessage, setThinkingMessage] = useState('bimmo pensando...');
   const [toolStatus, setToolStatus] = useState(null); 
   const [confirmation, setConfirmation] = useState(null); 
+  const confirmationRef = useRef(null);
   const [exitCounter, setExitCounter] = useState(0);
+  const exitCounterRef = useRef(0);
+  const isThinkingRef = useRef(false);
   const [provider, setProvider] = useState(() => createProvider(initialConfig));
   const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    isThinkingRef.current = isThinking;
+  }, [isThinking]);
+
+  useEffect(() => {
+    exitCounterRef.current = exitCounter;
+  }, [exitCounter]);
+
+  useEffect(() => {
+    confirmationRef.current = confirmation;
+  }, [confirmation]);
 
   useEffect(() => {
     const ctx = getProjectContext();
@@ -355,13 +370,13 @@ const BimmoApp = ({ initialConfig }) => {
   };
 
   useInput((char, key) => {
-    if (confirmation) {
+    if (confirmationRef.current) {
       if (char.toLowerCase() === 'y' || key.return) {
-        const resolve = confirmation.resolve;
+        const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
         resolve(true);
       } else if (char.toLowerCase() === 'n' || key.escape) {
-        const resolve = confirmation.resolve;
+        const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
         resolve(false);
       }
@@ -369,7 +384,7 @@ const BimmoApp = ({ initialConfig }) => {
     }
 
     if (key.ctrl && char === 'c') {
-      if (isThinking) {
+      if (isThinkingRef.current) {
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
         }
@@ -377,7 +392,7 @@ const BimmoApp = ({ initialConfig }) => {
         setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
         setExitCounter(0);
       } else {
-        if (exitCounter === 0) { 
+        if (exitCounterRef.current === 0) { 
           setExitCounter(1); 
           setTimeout(() => setExitCounter(0), 3000); 
         } else {
