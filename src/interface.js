@@ -442,6 +442,7 @@ const BimmoApp = ({ initialConfig }) => {
       const words = input.split(' ');
       words[words.length - 1] = `@${selected.rel}${selected.isDir ? '/' : ''}`;
       setInput(words.join(' '));
+      setInputKey(prev => prev + 1);
     }
 
     if (filePreview.length > 0) {
@@ -510,4 +511,6 @@ export async function startInteractive() {
 
   process.stdout.write('\x1Bc');
   render(h(BimmoApp, { initialConfig: config }), { exitOnCtrlC: false });
+}
+lse });
 }
