@@ -486,6 +486,7 @@ const BimmoApp = ({ initialConfig }) => {
           `${activePersona ? `[${activePersona.toUpperCase()}] ` : ''}› `
         ),
         h(TextInput, { 
+          key: inputKey,
           value: input, 
           onChange: setInput, 
           onSubmit: handleSubmit, 
@@ -509,4 +510,8 @@ export async function startInteractive() {
   
   process.stdout.write('\x1Bc');
   render(h(BimmoApp, { initialConfig: config }), { exitOnCtrlC: false });
+}
+false });
+}
+lse });
 }
