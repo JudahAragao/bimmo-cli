@@ -152,15 +152,26 @@ const BimmoApp = ({ initialConfig }) => {
       const dir = p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '.';
       const filter = p.includes('/') ? p.substring(p.lastIndexOf('/') + 1) : p;
       const absDir = path.resolve(process.cwd(), dir);
-      if (!fs.existsSync(absDir)) return [];
-      return fs.readdirSync(absDir)
+      if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) return [];
+      
+      const files = fs.readdirSync(absDir)
         .filter(f => f.startsWith(filter) && !f.startsWith('.') && f !== 'node_modules')
-        .slice(0, 5)
-        .map(f => ({ 
-          name: f, 
-          isDir: fs.statSync(path.join(absDir, f)).isDirectory(), 
-          rel: path.join(dir === '.' ? '' : dir, f) 
-        }));
+        .map(f => {
+          const fullPath = path.join(absDir, f);
+          const isDir = fs.statSync(fullPath).isDirectory();
+          return { 
+            name: f, 
+            isDir, 
+            rel: path.join(dir === '.' ? '' : dir, f) 
+          };
+        });
+
+      // Ordena: pastas primeiro, depois arquivos
+      return files.sort((a, b) => {
+        if (a.isDir && !b.isDir) return -1;
+        if (!a.isDir && b.isDir) return 1;
+        return a.name.localeCompare(b.name);
+      }).slice(0, 10);
     } catch (e) { return []; }
   }, [input]);
 
