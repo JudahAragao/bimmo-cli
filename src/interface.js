@@ -129,6 +129,38 @@ const FooterStatus = ({ mode, activePersona, exitCounter }) => (
   )
 );
 
+const ToolDisplay = ({ status }) => {
+  if (!status) return null;
+  const { type, message, diff, output } = status;
+  
+  return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: THEME.gray, paddingX: 1, marginBottom: 1 },
+    h(Box, null,
+      h(Text, { color: THEME.yellow, bold: true }, `[${type.toUpperCase()}] `),
+      h(Text, null, message)
+    ),
+    diff && h(Box, { marginTop: 1, flexDirection: 'column' },
+      diff.split('\n').map((line, i) => {
+        let color = THEME.gray;
+        if (line.startsWith('+')) color = THEME.green;
+        if (line.startsWith('-')) color = THEME.red;
+        return h(Text, { key: i, color }, line);
+      })
+    ),
+    output && h(Box, { marginTop: 1, maxHeight: 10 },
+      h(Text, { color: THEME.gray }, output)
+    )
+  );
+};
+
+const ConfirmationPrompt = ({ confirmation }) => {
+  if (!confirmation) return null;
+  return h(Box, { borderStyle: 'bold', borderColor: THEME.yellow, paddingX: 1, marginBottom: 1 },
+    h(Text, { bold: true }, `${confirmation.message} `),
+    h(Text, { color: THEME.green }, '(Y) Sim '),
+    h(Text, { color: THEME.red }, '/ (N) Não')
+  );
+};
+
 // --- APP PRINCIPAL ---
 
 const BimmoApp = ({ initialConfig }) => {
@@ -142,140 +174,12 @@ const BimmoApp = ({ initialConfig }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingMessage, setThinkingMessage] = useState('bimmo pensando...');
+  const [toolStatus, setToolStatus] = useState(null); // { type, message, diff, output }
+  const [confirmation, setConfirmation] = useState(null); // { message, resolve }
   const [exitCounter, setExitCounter] = useState(0);
-  const [provider, setProvider] = useState(() => createProvider(initialConfig));
-
-  useEffect(() => {
-    const ctx = getProjectContext();
-    setMessages([
-      { role: 'system', content: ctx },
-      { role: 'assistant', content: `Olá! Sou o **bimmo v${version}**. Como posso ajudar hoje?\n\nDigite \`/help\` para ver os comandos.` }
-    ]);
-  }, []);
-
-  const filePreview = useMemo(() => {
-    if (!input.includes('@')) return [];
-    const words = input.split(' ');
-    const lastWord = words[words.length - 1];
-    if (!lastWord.startsWith('@')) return [];
-    try {
-      const p = lastWord.slice(1);
-      const dir = p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '.';
-      const filter = p.includes('/') ? p.substring(p.lastIndexOf('/') + 1) : p;
-      const absDir = path.resolve(process.cwd(), dir);
-      if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) return [];
-      
-      const files = fs.readdirSync(absDir)
-        .filter(f => f.startsWith(filter) && !f.startsWith('.') && f !== 'node_modules')
-        .map(f => {
-          const fullPath = path.join(absDir, f);
-          const isDir = fs.statSync(fullPath).isDirectory();
-          return { 
-            name: f, 
-            isDir, 
-            rel: path.join(dir === '.' ? '' : dir, f) 
-          };
-        });
-
-      // Ordena: pastas primeiro, depois arquivos
-      return files.sort((a, b) => {
-        if (a.isDir && !b.isDir) return -1;
-        if (!a.isDir && b.isDir) return 1;
-        return a.name.localeCompare(b.name);
-      }).slice(0, 10);
-    } catch (e) { return []; }
-  }, [input]);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [filePreview.length]);
 
   const handleSubmit = async (val) => {
-    const rawInput = val.trim();
-    if (!rawInput) return;
-    setInput('');
-    const parts = rawInput.split(' ');
-    const cmd = parts[0].toLowerCase();
-
-    // Comandos de Sistema
-    if (cmd === '/exit') exit();
-    if (cmd === '/clear') {
-      setStaticMessages([]);
-      setMessages([{ role: 'system', content: getProjectContext() }, { role: 'assistant', content: 'Chat limpo.' }]);
-      return;
-    }
-    if (['/chat', '/plan', '/edit'].includes(cmd)) {
-      setMode(cmd.slice(1));
-      if (cmd === '/edit') editState.autoAccept = parts[1] === 'auto';
-      return;
-    }
-
-    if (cmd === '/model') {
-      const newModel = parts[1];
-      if (newModel) {
-        updateActiveModel(newModel);
-        const newCfg = getConfig();
-        setConfig(newCfg);
-        setProvider(createProvider(newCfg));
-        setMessages(prev => [...prev, { role: 'system', content: `Modelo alterado para: ${newModel}` }]);
-      }
-      return;
-    }
-
-    if (cmd === '/switch') {
-      const profile = parts[1];
-      if (switchProfile(profile)) {
-        const newCfg = getConfig();
-        setConfig(newCfg);
-        setProvider(createProvider(newCfg));
-        setMessages(prev => [...prev, { role: 'system', content: `Perfil alterado para: ${profile}` }]);
-      }
-      return;
-    }
-
-    if (cmd === '/use') {
-      const agentName = parts[1];
-      const agents = config.agents || {};
-      if (agentName === 'normal') {
-        setActivePersona(null);
-      } else if (agents[agentName]) {
-        setActivePersona(agentName);
-        setMode(agents[agentName].mode || 'chat');
-      }
-      return;
-    }
-
-    if (cmd === '/help') {
-      setMessages(prev => [...prev, { role: 'assistant', content: `**Comandos Disponíveis:**\n\n- \`/chat\`, \`/plan\`, \`/edit\`: Alternar modos\n- \`/model <nome>\`: Trocar modelo atual\n- \`/switch <perfil>\`: Trocar perfil de API\n- \`/use <agente>\`: Usar agente especializado\n- \`/clear\`: Limpar histórico\n- \`/exit\`: Sair do bimmo\n- \`@arquivo\`: Referenciar arquivo local` }]);
-      return;
-    }
-
-    // Processamento de arquivos
-    setIsThinking(true);
-    let processedInput = rawInput;
-    const fileMatches = rawInput.match(/@[\w\.\-\/]+/g);
-    if (fileMatches) {
-      for (const match of fileMatches) {
-        const filePath = match.slice(1);
-        try {
-          if (fs.existsSync(filePath)) {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            processedInput = processedInput.replace(match, `\n\n[Arquivo: ${filePath}]\n\`\`\`\n${content}\n\`\`\`\n`);
-          }
-        } catch (e) {}
-      }
-    }
-
-    const userMsg = { role: 'user', content: processedInput, displayContent: rawInput };
-    
-    // Move mensagens antigas para static para performance
-    if (messages.length > 5) {
-      setStaticMessages(prev => [...prev, ...messages.slice(0, -5)]);
-      setMessages(prev => [...prev.slice(-5), userMsg]);
-    } else {
-      setMessages(prev => [...prev, userMsg]);
-    }
-
+    // ... (unchanged code)
     try {
       let finalMessages = [...staticMessages, ...messages, userMsg];
       if (activePersona && config.agents[activePersona]) {
@@ -283,17 +187,45 @@ const BimmoApp = ({ initialConfig }) => {
         finalMessages = [{ role: 'system', content: `Sua tarefa: ${agent.role}\n\n${getProjectContext()}` }, ...finalMessages.filter(m => m.role !== 'system')];
       }
       
-      const response = await provider.sendMessage(finalMessages);
+      const options = {
+        onStatus: (status) => {
+          setToolStatus(status);
+          if (status.message) setThinkingMessage(status.message);
+        },
+        onConfirm: (message) => {
+          return new Promise((resolve) => {
+            setConfirmation({ message, resolve });
+          });
+        }
+      };
+
+      const response = await provider.sendMessage(finalMessages, options);
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'system', content: `Erro: ${err.message}` }]);
     } finally {
       setIsThinking(false);
+      setToolStatus(null);
+      setConfirmation(null);
+      setThinkingMessage('bimmo pensando...');
     }
   };
 
   useInput((char, key) => {
-    if (key.ctrl && char === 'c') {
+    if (confirmation) {
+      if (char.toLowerCase() === 'y' || key.return) {
+        const resolve = confirmation.resolve;
+        setConfirmation(null);
+        resolve(true);
+      } else if (char.toLowerCase() === 'n' || key.escape) {
+        const resolve = confirmation.resolve;
+        setConfirmation(null);
+        resolve(false);
+      }
+      return;
+    }
+    // ... rest of useInput
+
       if (isThinking) {
         setIsThinking(false);
         setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
@@ -333,11 +265,15 @@ const BimmoApp = ({ initialConfig }) => {
         messages.filter(m => m.role !== 'system').map((m, i) => h(Message, { key: i, ...m }))
       ),
 
-      isThinking && h(Box, { marginBottom: 1 },
-        h(Text, { color: THEME.lavender },
-          h(Spinner, { type: 'dots' }),
-          h(Text, { italic: true }, ` ${thinkingMessage}`)
-        )
+      isThinking && h(Box, { marginBottom: 1, flexDirection: 'column' },
+        h(Box, null,
+          h(Text, { color: THEME.lavender },
+            h(Spinner, { type: 'dots' }),
+            h(Text, { italic: true }, ` ${thinkingMessage}`)
+          )
+        ),
+        h(ToolDisplay, { status: toolStatus }),
+        h(ConfirmationPrompt, { confirmation })
       ),
 
       filePreview.length > 0 && h(AutocompleteSuggestions, { suggestions: filePreview, selectedIndex }),

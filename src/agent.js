@@ -5,12 +5,10 @@ import { execSync } from 'child_process';
 import { getConfig } from './config.js';
 import * as diff from 'diff';
 import chalk from 'chalk';
-import inquirer from 'inquirer';
 
 const config = getConfig();
 const tvly = config.tavilyKey ? tavily({ apiKey: config.tavilyKey }) : null;
 
-// Estado global para controle de edições (temporário na sessão)
 export const editState = {
   autoAccept: false
 };
@@ -26,9 +24,9 @@ export const tools = [
       },
       required: ['query']
     },
-    execute: async ({ query }) => {
-      if (!tvly) return 'Erro: Chave de API da Tavily não configurada. Use /config para configurar.';
-      console.log(chalk.blue(`\n  🌐  Pesquisando na web: ${chalk.bold(query)}...`));
+    execute: async ({ query }, { onStatus }) => {
+      if (!tvly) return 'Erro: Chave de API da Tavily não configurada.';
+      onStatus?.({ type: 'search', message: `Pesquisando: ${query}` });
       const searchResponse = await tvly.search(query, {
         searchDepth: 'advanced',
         maxResults: 5
@@ -50,9 +48,9 @@ export const tools = [
       },
       required: ['path']
     },
-    execute: async ({ path: filePath }) => {
+    execute: async ({ path: filePath }, { onStatus }) => {
       try {
-        console.log(chalk.blue(`\n  📖  Lendo arquivo: ${chalk.bold(filePath)}...`));
+        onStatus?.({ type: 'read', message: `Lendo: ${filePath}` });
         return fs.readFileSync(filePath, 'utf-8');
       } catch (err) {
         return `Erro ao ler arquivo: ${err.message}`;
@@ -61,71 +59,51 @@ export const tools = [
   },
   {
     name: 'write_file',
-    description: 'Cria ou sobrescreve um arquivo com um conteúdo específico.',
+    description: 'Cria ou sobrescreve um arquivo. SEMPRE mostre as mudanças antes de aplicar.',
     parameters: {
       type: 'object',
       properties: {
         path: { type: 'string', description: 'Caminho de destino' },
-        content: { type: 'string', description: 'Conteúdo do arquivo' }
+        content: { type: 'string', description: 'Conteúdo completo do arquivo' }
       },
       required: ['path', 'content']
     },
-    execute: async ({ path: filePath, content }) => {
+    execute: async ({ path: filePath, content }, { onStatus, onConfirm }) => {
       try {
         const absolutePath = path.resolve(filePath);
         const oldContent = fs.existsSync(absolutePath) ? fs.readFileSync(absolutePath, 'utf-8') : "";
         
-        // Gerar Diff
         const differences = diff.diffLines(oldContent, content);
-        
-        console.log(`\n${chalk.cyan('📝 Alterações propostas em:')} ${chalk.bold(filePath)}`);
-        console.log(chalk.gray('─'.repeat(50)));
-        
+        let diffString = '';
         let hasChanges = false;
+
         differences.forEach((part) => {
           if (part.added || part.removed) hasChanges = true;
-          const color = part.added ? chalk.green : part.removed ? chalk.red : chalk.gray;
           const prefix = part.added ? '+' : part.removed ? '-' : ' ';
+          const lines = part.value.split('\n');
           
           if (part.added || part.removed) {
-            // Garante que cada linha tenha o prefixo
-            const lines = part.value.split('\n');
             lines.forEach(line => {
               if (line || part.value.endsWith('\n')) {
-                process.stdout.write(color(`${prefix} ${line}\n`));
+                diffString += `${prefix} ${line}\n`;
               }
             });
           } else {
-            // Mostra apenas as primeiras e últimas linhas de blocos sem mudança para encurtar
-            const lines = part.value.split('\n').filter(l => l.trim() !== "");
             if (lines.length > 4) {
-              process.stdout.write(color(`  ${lines[0]}\n  ...\n  ${lines[lines.length-1]}\n`));
-            } else if (lines.length > 0) {
-              lines.forEach(line => process.stdout.write(color(`  ${line}\n`)));
+              diffString += `  ${lines[0]}\n  ...\n  ${lines[lines.length-2]}\n`;
+            } else {
+              lines.forEach(line => { if (line) diffString += `  ${line}\n` });
             }
           }
         });
-        console.log(chalk.gray('─'.repeat(50)));
 
-        if (!hasChanges) {
-          return "Nenhuma mudança detectada no arquivo.";
-        }
+        if (!hasChanges) return "Nenhuma mudança detectada.";
 
-        // Lógica de Aprovação
+        onStatus?.({ type: 'diff', message: `Alterando: ${filePath}`, diff: diffString });
+
         if (!editState.autoAccept) {
-          const { approve } = await inquirer.prompt([{
-            type: 'list',
-            name: 'approve',
-            message: 'Deseja aplicar estas alterações?',
-            choices: [
-              { name: '✅ Sim', value: 'yes' },
-              { name: '❌ Não', value: 'no' },
-              { name: '⚡ Sim para tudo (Auto-Accept)', value: 'all' }
-            ]
-          }]);
-
-          if (approve === 'no') return "Alteração rejeitada pelo usuário.";
-          if (approve === 'all') editState.autoAccept = true;
+          const approved = await onConfirm?.(`Deseja aplicar as mudanças em ${filePath}?`);
+          if (!approved) return "Alteração rejeitada pelo usuário.";
         }
 
         const dir = path.dirname(absolutePath);
@@ -144,34 +122,24 @@ export const tools = [
     parameters: {
       type: 'object',
       properties: {
-        command: { type: 'string', description: 'Comando shell a ser executado' }
+        command: { type: 'string', description: 'Comando shell' }
       },
       required: ['command']
     },
-    execute: async ({ command }) => {
+    execute: async ({ command }, { onStatus, onConfirm }) => {
       try {
-        console.log(chalk.yellow(`\n  ⚡  Comando proposto: ${chalk.bold(command)}`));
+        onStatus?.({ type: 'command', message: `Executando: ${command}` });
         
         if (!editState.autoAccept) {
-          const { approve } = await inquirer.prompt([{
-            type: 'list',
-            name: 'approve',
-            message: 'Executar este comando?',
-            choices: [
-              { name: '✅ Sim', value: 'yes' },
-              { name: '❌ Não', value: 'no' },
-              { name: '⚡ Sim para tudo (Auto-Accept)', value: 'all' }
-            ]
-          }]);
-
-          if (approve === 'no') return "Comando rejeitado pelo usuário.";
-          if (approve === 'all') editState.autoAccept = true;
+          const approved = await onConfirm?.(`Executar comando: ${command}?`);
+          if (!approved) return "Comando rejeitado.";
         }
 
         const output = execSync(command, { encoding: 'utf-8', timeout: 60000 });
-        return output || 'Comando executado com sucesso (sem retorno).';
+        onStatus?.({ type: 'command_output', message: 'Resultado do comando', output });
+        return output || 'Comando executado com sucesso.';
       } catch (err) {
-        return `Erro ao executar comando: ${err.stderr || err.message}`;
+        return `Erro: ${err.stderr || err.message}`;
       }
     }
   }

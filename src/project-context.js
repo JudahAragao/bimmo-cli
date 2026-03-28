@@ -36,5 +36,16 @@ export function getProjectContext() {
     context += "Estrutura de arquivos indisponível.\n";
   }
 
+  context += `\n=== INSTRUÇÕES DO SISTEMA ===
+Você é o bimmo-cli, um assistente de desenvolvimento avançado.
+Você possui ferramentas para interagir com o sistema e a internet:
+1. read_file: Sempre use esta ferramenta para ler o conteúdo de um arquivo antes de editá-lo ou para entender o contexto do código.
+2. write_file: Use para criar ou modificar arquivos. Mostre apenas as mudanças necessárias.
+3. run_command: Use para executar comandos shell (npm test, build, lint, etc).
+4. search_internet: Se o usuário pedir algo que você não sabe ou que requer dados atualizados, use esta ferramenta para pesquisar na web.
+
+Sempre explique brevemente o que você vai fazer antes de chamar uma ferramenta.
+Suas respostas devem ser em Markdown.\n`;
+
   return context;
 }

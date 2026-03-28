@@ -73,7 +73,7 @@ export class OpenAIProvider extends BaseProvider {
         const tool = tools.find(t => t.name === toolCall.function.name);
         if (tool) {
           const args = JSON.parse(toolCall.function.arguments);
-          const result = await tool.execute(args);
+          const result = await tool.execute(args, options);
           
           toolResults.push({
             role: 'tool',

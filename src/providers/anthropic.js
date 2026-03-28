@@ -47,30 +47,34 @@ export class AnthropicProvider extends BaseProvider {
     }, { signal: options.signal });
 
     if (response.stop_reason === 'tool_use') {
-      const toolUse = response.content.find(p => p.type === 'tool_use');
-      const tool = tools.find(t => t.name === toolUse.name);
-      
-      if (tool) {
+      const toolUseParts = response.content.filter(p => p.type === 'tool_use');
+      const toolResults = [];
+
+      for (const toolUse of toolUseParts) {
         if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
-        const result = await tool.execute(toolUse.input);
-        
-        const nextMessages = [
-          ...messages,
-          { role: 'assistant', content: response.content },
-          {
-            role: 'user',
-            content: [{
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              content: String(result)
-            }]
-          }
-        ];
-        
-        return this.sendMessage(nextMessages, options);
+        const tool = tools.find(t => t.name === toolUse.name);
+        if (tool) {
+          const result = await tool.execute(toolUse.input, options);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: String(result)
+          });
+        }
       }
+
+      const nextMessages = [
+        ...messages,
+        { role: 'assistant', content: response.content },
+        {
+          role: 'user',
+          content: toolResults
+        }
+      ];
+      
+      return this.sendMessage(nextMessages, options);
     }
 
-    return response.content[0].text;
+    return response.content.find(p => p.type === 'text')?.text || "";
   }
 }

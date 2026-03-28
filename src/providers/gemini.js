@@ -53,22 +53,54 @@ export class GeminiProvider extends BaseProvider {
     const result = await chat.sendMessage(lastMessageContent);
     const response = await result.response;
     
-    const call = response.candidates[0].content.parts.find(p => p.functionCall);
-    if (call) {
+    const toolCalls = response.candidates[0].content.parts.filter(p => p.functionCall);
+    if (toolCalls.length > 0) {
       if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
       
-      const tool = tools.find(t => t.name === call.functionCall.name);
-      if (tool) {
-        const toolResult = await tool.execute(call.functionCall.args);
-        
-        const resultResponse = await chat.sendMessage([{
-          functionResponse: {
-            name: call.functionCall.name,
-            response: { content: toolResult }
-          }
-        }]);
-        return resultResponse.response.text();
+      const functionResponses = [];
+      for (const call of toolCalls) {
+        const tool = tools.find(t => t.name === call.functionCall.name);
+        if (tool) {
+          const toolResult = await tool.execute(call.functionCall.args, options);
+          functionResponses.push({
+            functionResponse: {
+              name: call.functionCall.name,
+              response: { content: toolResult }
+            }
+          });
+        }
       }
+
+      const resultResponse = await chat.sendMessage(functionResponses);
+      const nextResponse = await resultResponse.response;
+      
+      // Se o próximo turno também tiver chamadas de função, precisamos de recursão.
+      // No entanto, a API do Gemini lida com o histórico dentro do chat.
+      // Vamos verificar se há mais chamadas.
+      const moreToolCalls = nextResponse.candidates[0].content.parts.filter(p => p.functionCall);
+      if (moreToolCalls.length > 0) {
+        // Para manter a simplicidade e recursão similar ao OpenAI:
+        // Mas o sendMessage do Gemini retorna a resposta final.
+        // Vamos tentar processar recursivamente se necessário.
+        // A forma mais robusta é um loop.
+        let currentResponse = nextResponse;
+        while (currentResponse.candidates[0].content.parts.some(p => p.functionCall)) {
+             const nextCalls = currentResponse.candidates[0].content.parts.filter(p => p.functionCall);
+             const nextResponses = [];
+             for (const call of nextCalls) {
+                const t = tools.find(tool => tool.name === call.functionCall.name);
+                if (t) {
+                   const r = await t.execute(call.functionCall.args, options);
+                   nextResponses.push({ functionResponse: { name: call.functionCall.name, response: { content: r } } });
+                }
+             }
+             const rRes = await chat.sendMessage(nextResponses);
+             currentResponse = await rRes.response;
+        }
+        return currentResponse.text();
+      }
+      
+      return nextResponse.text();
     }
 
     return response.text();
