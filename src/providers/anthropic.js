@@ -23,7 +23,7 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async sendMessage(messages, options = {}, toolCallCount = 0) {
-    const MAX_TOOL_CALLS = 5;
+    const MAX_TOOL_CALLS = 8;
     const systemMessage = messages.find(m => m.role === 'system');
     const userMessages = messages
       .filter(m => m.role !== 'system')
@@ -49,7 +49,7 @@ export class AnthropicProvider extends BaseProvider {
 
     if (response.stop_reason === 'tool_use') {
       if (toolCallCount >= MAX_TOOL_CALLS) {
-        return "Erro: Limite de chamadas de ferramentas atingido (segurança). Verifique se a IA entrou em loop.";
+        return `Interrompido: Limite de segurança atingido (${MAX_TOOL_CALLS} tarefas consecutivas). A IA realizou as modificações acima, mas parou para evitar loops. Se precisar de mais, peça novamente.`;
       }
 
       const toolUseParts = response.content.filter(p => p.type === 'tool_use');

@@ -60,11 +60,11 @@ export class GeminiProvider extends BaseProvider {
       if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
       
       let callCount = 0;
-      const MAX_TOOL_CALLS = 5;
+      const MAX_TOOL_CALLS = 8;
 
       while (currentResponse.candidates[0].content.parts.some(p => p.functionCall)) {
         if (callCount >= MAX_TOOL_CALLS) {
-          return "Erro: Limite de chamadas de ferramentas atingido (segurança). Verifique se a IA entrou em loop.";
+          return `Interrompido: Limite de segurança atingido (${MAX_TOOL_CALLS} tarefas consecutivas). A IA realizou as modificações acima, mas parou para evitar loops. Se precisar de mais, peça novamente.`;
         }
         
         const nextCalls = currentResponse.candidates[0].content.parts.filter(p => p.functionCall);

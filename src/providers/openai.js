@@ -39,7 +39,7 @@ export class OpenAIProvider extends BaseProvider {
   }
 
   async sendMessage(messages, options = {}, toolCallCount = 0) {
-    const MAX_TOOL_CALLS = 5;
+    const MAX_TOOL_CALLS = 8;
     const formattedMessages = this.formatMessages(messages);
     
     const openAiTools = tools.map(t => ({
@@ -68,7 +68,7 @@ export class OpenAIProvider extends BaseProvider {
 
     if (message.tool_calls) {
       if (toolCallCount >= MAX_TOOL_CALLS) {
-        return "Erro: Limite de chamadas de ferramentas atingido (segurança). Verifique se a IA entrou em loop.";
+        return `Interrompido: Limite de segurança atingido (${MAX_TOOL_CALLS} tarefas consecutivas). A IA realizou as modificações acima, mas parou para evitar loops. Se precisar de mais, peça novamente.`;
       }
 
       const toolResults = [];
