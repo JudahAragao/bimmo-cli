@@ -14,7 +14,6 @@ import { getConfig, updateActiveModel, switchProfile } from './config.js';
 import { createProvider } from './providers/factory.js';
 import { getProjectContext } from './project-context.js';
 import { editState } from './agent.js';
-import { SwarmOrchestrator } from './orchestrator.js';
 
 // Cores e Temas
 const THEME = {
@@ -147,7 +146,7 @@ const ToolDisplay = ({ status }) => {
       })
     ),
     output && h(Box, { marginTop: 1, maxHeight: 10 },
-      h(Text, { color: THEME.gray }, output)
+      h(Text, { color: THEME.gray, dimColor: true }, output)
     )
   );
 };
@@ -169,17 +168,143 @@ const BimmoApp = ({ initialConfig }) => {
   const [mode, setMode] = useState('chat');
   const [activePersona, setActivePersona] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [staticMessages, setStaticMessages] = useState([]); // Para mensagens antigas
+  const [staticMessages, setStaticMessages] = useState([]); 
   const [input, setInput] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingMessage, setThinkingMessage] = useState('bimmo pensando...');
-  const [toolStatus, setToolStatus] = useState(null); // { type, message, diff, output }
-  const [confirmation, setConfirmation] = useState(null); // { message, resolve }
+  const [toolStatus, setToolStatus] = useState(null); 
+  const [confirmation, setConfirmation] = useState(null); 
   const [exitCounter, setExitCounter] = useState(0);
+  const [provider, setProvider] = useState(() => createProvider(initialConfig));
+
+  useEffect(() => {
+    const ctx = getProjectContext();
+    setMessages([
+      { role: 'system', content: ctx },
+      { role: 'assistant', content: `Olá! Sou o **bimmo v${version}**. Como posso ajudar hoje?\n\nDigite \`/help\` para ver os comandos.` }
+    ]);
+  }, []);
+
+  const filePreview = useMemo(() => {
+    if (!input.includes('@')) return [];
+    const words = input.split(' ');
+    const lastWord = words[words.length - 1];
+    if (!lastWord.startsWith('@')) return [];
+    try {
+      const p = lastWord.slice(1);
+      const dir = p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '.';
+      const filter = p.includes('/') ? p.substring(p.lastIndexOf('/') + 1) : p;
+      const absDir = path.resolve(process.cwd(), dir);
+      if (!fs.existsSync(absDir) || !fs.statSync(absDir).isDirectory()) return [];
+      
+      const files = fs.readdirSync(absDir)
+        .filter(f => f.startsWith(filter) && !f.startsWith('.') && f !== 'node_modules')
+        .map(f => {
+          const fullPath = path.join(absDir, f);
+          const isDir = fs.statSync(fullPath).isDirectory();
+          return { 
+            name: f, 
+            isDir, 
+            rel: path.join(dir === '.' ? '' : dir, f) 
+          };
+        });
+
+      return files.sort((a, b) => {
+        if (a.isDir && !b.isDir) return -1;
+        if (!a.isDir && b.isDir) return 1;
+        return a.name.localeCompare(b.name);
+      }).slice(0, 10);
+    } catch (e) { return []; }
+  }, [input]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filePreview.length]);
 
   const handleSubmit = async (val) => {
-    // ... (unchanged code)
+    const rawInput = val.trim();
+    if (!rawInput) return;
+    setInput('');
+    const parts = rawInput.split(' ');
+    const cmd = parts[0].toLowerCase();
+
+    if (cmd === '/exit') exit();
+    if (cmd === '/clear') {
+      setStaticMessages([]);
+      setMessages([{ role: 'system', content: getProjectContext() }, { role: 'assistant', content: 'Chat limpo.' }]);
+      return;
+    }
+    if (['/chat', '/plan', '/edit'].includes(cmd)) {
+      setMode(cmd.slice(1));
+      if (cmd === '/edit') editState.autoAccept = parts[1] === 'auto';
+      return;
+    }
+
+    if (cmd === '/model') {
+      const newModel = parts[1];
+      if (newModel) {
+        updateActiveModel(newModel);
+        const newCfg = getConfig();
+        setConfig(newCfg);
+        setProvider(createProvider(newCfg));
+        setMessages(prev => [...prev, { role: 'system', content: `Modelo alterado para: ${newModel}` }]);
+      }
+      return;
+    }
+
+    if (cmd === '/switch') {
+      const profile = parts[1];
+      if (switchProfile(profile)) {
+        const newCfg = getConfig();
+        setConfig(newCfg);
+        setProvider(createProvider(newCfg));
+        setMessages(prev => [...prev, { role: 'system', content: `Perfil alterado para: ${profile}` }]);
+      }
+      return;
+    }
+
+    if (cmd === '/use') {
+      const agentName = parts[1];
+      const agents = config.agents || {};
+      if (agentName === 'normal') {
+        setActivePersona(null);
+      } else if (agents[agentName]) {
+        setActivePersona(agentName);
+        setMode(agents[agentName].mode || 'chat');
+      }
+      return;
+    }
+
+    if (cmd === '/help') {
+      setMessages(prev => [...prev, { role: 'assistant', content: `**Comandos Disponíveis:**\n\n- \`/chat\`, \`/plan\`, \`/edit\`: Alternar modos\n- \`/model <nome>\`: Trocar modelo atual\n- \`/switch <perfil>\`: Trocar perfil de API\n- \`/use <agente>\`: Usar agente especializado\n- \`/clear\`: Limpar histórico\n- \`/exit\`: Sair do bimmo\n- \`@arquivo\`: Referenciar arquivo local` }]);
+      return;
+    }
+
+    setIsThinking(true);
+    let processedInput = rawInput;
+    const fileMatches = rawInput.match(/@[\w\.\-\/]+/g);
+    if (fileMatches) {
+      for (const match of fileMatches) {
+        const filePath = match.slice(1);
+        try {
+          if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            processedInput = processedInput.replace(match, `\n\n[Arquivo: ${filePath}]\n\`\`\`\n${content}\n\`\`\`\n`);
+          }
+        } catch (e) {}
+      }
+    }
+
+    const userMsg = { role: 'user', content: processedInput, displayContent: rawInput };
+    
+    if (messages.length > 5) {
+      setStaticMessages(prev => [...prev, ...messages.slice(0, -5)]);
+      setMessages(prev => [...prev.slice(-5), userMsg]);
+    } else {
+      setMessages(prev => [...prev, userMsg]);
+    }
+
     try {
       let finalMessages = [...staticMessages, ...messages, userMsg];
       if (activePersona && config.agents[activePersona]) {
@@ -302,7 +427,6 @@ export async function startInteractive() {
     process.exit(0);
   }
   
-  // Limpa tela e inicia
   process.stdout.write('\x1Bc');
   render(h(BimmoApp, { initialConfig: config }));
 }
