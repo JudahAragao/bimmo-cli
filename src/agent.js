@@ -78,32 +78,63 @@ export const tools = [
         const differences = diff.diffLines(oldContent, content);
         let diffString = '';
         let hasChanges = false;
+        let lineNoOld = 1;
+        let lineNoNew = 1;
 
         differences.forEach((part) => {
-          if (part.added || part.removed) hasChanges = true;
           const prefix = part.added ? '+' : part.removed ? '-' : ' ';
-          const lines = part.value.split('\n').filter(l => l !== '' || part.value.endsWith('\n'));
-          
+          const lines = part.value.split('\n');
+          if (lines[lines.length - 1] === '') lines.pop();
+
           if (part.added || part.removed) {
-            if (lines.length > 20) {
-              lines.slice(0, 5).forEach(line => { diffString += `${prefix} ${line}\n` });
-              diffString += `${prefix} ... (${lines.length - 10} linhas ocultas) ...\n`;
-              lines.slice(-5).forEach(line => { if (line) diffString += `${prefix} ${line}\n` });
+            hasChanges = true;
+            if (lines.length > 30) {
+              // Resumo para blocos muito grandes
+              lines.slice(0, 8).forEach(line => {
+                diffString += `${chalk.gray(prefix === '+' ? '      ' : lineNoOld.toString().padStart(4) + ' ')}${chalk.gray(prefix === '-' ? '      ' : lineNoNew.toString().padStart(4) + ' ')} ${prefix === '+' ? chalk.green(prefix + ' ' + line) : chalk.red(prefix + ' ' + line)}\n`;
+                if (prefix === '+') lineNoNew++; else lineNoOld++;
+              });
+              diffString += chalk.dim(`     ... (${lines.length - 16} linhas ocultas) ...\n`);
+              lines.slice(-8).forEach(line => {
+                diffString += `${chalk.gray(prefix === '+' ? '      ' : lineNoOld.toString().padStart(4) + ' ')}${chalk.gray(prefix === '-' ? '      ' : lineNoNew.toString().padStart(4) + ' ')} ${prefix === '+' ? chalk.green(prefix + ' ' + line) : chalk.red(prefix + ' ' + line)}\n`;
+                if (prefix === '+') lineNoNew++; else lineNoOld++;
+              });
             } else {
-              lines.forEach(line => { diffString += `${prefix} ${line}\n` });
+              lines.forEach(line => {
+                diffString += `${chalk.gray(prefix === '+' ? '      ' : lineNoOld.toString().padStart(4) + ' ')}${chalk.gray(prefix === '-' ? '      ' : lineNoNew.toString().padStart(4) + ' ')} ${prefix === '+' ? chalk.green(prefix + ' ' + line) : chalk.red(prefix + ' ' + line)}\n`;
+                if (prefix === '+') lineNoNew++; else lineNoOld++;
+              });
             }
           } else {
-            if (lines.length > 4) {
-              diffString += `  ${lines[0]}\n  ...\n  ${lines[lines.length-1]}\n`;
+            // Linhas de contexto (mostra apenas as bordas se for muito grande)
+            if (lines.length > 6) {
+              lines.slice(0, 3).forEach(line => {
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${line}\n`;
+                lineNoOld++; lineNoNew++;
+              });
+              diffString += chalk.dim(`     ...\n`);
+              lineNoOld += lines.length - 6;
+              lineNoNew += lines.length - 6;
+              lines.slice(-3).forEach(line => {
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${line}\n`;
+                lineNoOld++; lineNoNew++;
+              });
             } else {
-              lines.forEach(line => { if (line) diffString += `  ${line}\n` });
+              lines.forEach(line => {
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${line}\n`;
+                lineNoOld++; lineNoNew++;
+              });
             }
           }
         });
 
         if (!hasChanges) return "Nenhuma mudança detectada.";
 
-        onStatus?.({ type: 'diff', message: `Solicitando permissão para: ${filePath}`, diff: diffString });
+        onStatus?.({ 
+          type: 'diff', 
+          message: `Alterações em: ${chalk.cyan.bold(filePath)}`, 
+          diff: diffString 
+        });
 
         if (!editState.autoAccept) {
           const approved = await onConfirm?.(`Deseja aplicar as mudanças em ${filePath}?`);

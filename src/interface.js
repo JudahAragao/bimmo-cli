@@ -80,16 +80,11 @@ const Message = ({ role, content, displayContent, type, diff, output, message, c
 
   if (type === 'tool') {
     return h(Box, { flexDirection: 'column', marginBottom: 1, paddingLeft: 2 },
-      h(Box, null,
-        h(Text, { color: THEME.yellow, bold: true }, `[${message.toUpperCase()}] `),
+      h(Box, { marginBottom: diff || output ? 1 : 0 },
+        h(Text, { color: THEME.yellow, bold: true }, `› ${message.toUpperCase()} `),
       ),
-      diff && h(Box, { marginTop: 0, flexDirection: 'column' },
-        diff.split('\n').map((line, i) => {
-          let color = THEME.gray;
-          if (line.startsWith('+')) color = THEME.green;
-          if (line.startsWith('-')) color = THEME.red;
-          return h(Text, { key: i, color }, line);
-        })
+      diff && h(Box, { flexDirection: 'column', paddingLeft: 0 },
+        diff.split('\n').map((line, i) => h(Text, { key: i }, line))
       ),
       output && h(Box, { marginTop: 0 },
         h(Text, { color: THEME.gray, dimColor: true }, output)
