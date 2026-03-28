@@ -224,8 +224,8 @@ const BimmoApp = ({ initialConfig }) => {
       }
       return;
     }
-    // ... rest of useInput
 
+    if (key.ctrl && char === 'c') {
       if (isThinking) {
         setIsThinking(false);
         setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
