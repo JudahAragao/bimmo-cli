@@ -81,6 +81,11 @@ export const tools = [
         let lineNoOld = 1;
         let lineNoNew = 1;
 
+        // Cabeçalho do arquivo estilo Gemini/Claude
+        diffString += `${chalk.bold.white('--- ' + filePath)}\n`;
+        diffString += `${chalk.bold.white('+++ ' + filePath)}\n`;
+        diffString += `${chalk.dim('────────────────────────────────────────────────────────────────────────────────')}\n`;
+
         differences.forEach((part) => {
           const prefix = part.added ? '+' : part.removed ? '-' : ' ';
           const lines = part.value.split('\n');
@@ -88,37 +93,31 @@ export const tools = [
 
           if (part.added || part.removed) {
             hasChanges = true;
-            if (lines.length > 30) {
-              // Resumo para blocos muito grandes
-              lines.slice(0, 8).forEach(line => {
-                diffString += `${chalk.gray(prefix === '+' ? '      ' : lineNoOld.toString().padStart(4) + ' ')}${chalk.gray(prefix === '-' ? '      ' : lineNoNew.toString().padStart(4) + ' ')} ${prefix === '+' ? chalk.green(prefix + ' ' + line) : chalk.red(prefix + ' ' + line)}\n`;
-                if (prefix === '+') lineNoNew++; else lineNoOld++;
-              });
-              diffString += chalk.dim(`     ... (${lines.length - 16} linhas ocultas) ...\n`);
-              lines.slice(-8).forEach(line => {
-                diffString += `${chalk.gray(prefix === '+' ? '      ' : lineNoOld.toString().padStart(4) + ' ')}${chalk.gray(prefix === '-' ? '      ' : lineNoNew.toString().padStart(4) + ' ')} ${prefix === '+' ? chalk.green(prefix + ' ' + line) : chalk.red(prefix + ' ' + line)}\n`;
-                if (prefix === '+') lineNoNew++; else lineNoOld++;
-              });
-            } else {
-              lines.forEach(line => {
-                diffString += `${chalk.gray(prefix === '+' ? '      ' : lineNoOld.toString().padStart(4) + ' ')}${chalk.gray(prefix === '-' ? '      ' : lineNoNew.toString().padStart(4) + ' ')} ${prefix === '+' ? chalk.green(prefix + ' ' + line) : chalk.red(prefix + ' ' + line)}\n`;
-                if (prefix === '+') lineNoNew++; else lineNoOld++;
-              });
-            }
+            lines.forEach(line => {
+              const oldNum = prefix === '-' ? lineNoOld.toString().padStart(4) : '    ';
+              const newNum = prefix === '+' ? lineNoNew.toString().padStart(4) : '    ';
+              const color = prefix === '+' ? chalk.green : chalk.red;
+              
+              diffString += `${chalk.gray(oldNum)} ${chalk.gray(newNum)} ${color(prefix + ' ' + line)}\n`;
+              
+              if (prefix === '+') lineNoNew++; else lineNoOld++;
+            });
           } else {
-            // Linhas de contexto (mostra apenas as bordas se for muito grande)
+            // Contexto (linhas não alteradas)
             if (lines.length > 6) {
-              lines.slice(0, 3).forEach(line => {
-                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${line}\n`;
+              // Mostra 3 no início
+              for (let i = 0; i < 3; i++) {
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${lines[i]}\n`;
                 lineNoOld++; lineNoNew++;
-              });
-              diffString += chalk.dim(`     ...\n`);
+              }
+              diffString += `${chalk.dim('.... ....   ' + (lines.length - 6) + ' linhas ocultas...')}\n`;
               lineNoOld += lines.length - 6;
               lineNoNew += lines.length - 6;
-              lines.slice(-3).forEach(line => {
-                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${line}\n`;
+              // Mostra 3 no fim
+              for (let i = lines.length - 3; i < lines.length; i++) {
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${lines[i]}\n`;
                 lineNoOld++; lineNoNew++;
-              });
+              }
             } else {
               lines.forEach(line => {
                 diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${line}\n`;
@@ -132,7 +131,7 @@ export const tools = [
 
         onStatus?.({ 
           type: 'diff', 
-          message: `Alterações em: ${chalk.cyan.bold(filePath)}`, 
+          message: `MODIFICANDO: ${filePath}`, 
           diff: diffString 
         });
 

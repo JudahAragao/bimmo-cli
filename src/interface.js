@@ -359,7 +359,7 @@ const BimmoApp = ({ initialConfig }) => {
         signal: abortController.signal,
         onStatus: (status) => {
           if (status.type === 'diff' || status.type === 'command_output') {
-            setStaticMessages(prev => [...prev, { role: 'system', type: 'tool', ...status }]);
+            setStaticMessages(prev => [...prev, { role: 'system', isToolMessage: true, ...status }]);
           } else {
             setToolStatus(status);
             if (status.message) setThinkingMessage(status.message);
@@ -509,4 +509,6 @@ export async function startInteractive() {
   
   process.stdout.write('\x1Bc');
   render(h(BimmoApp, { initialConfig: config }), { exitOnCtrlC: false });
+}
+});
 }
