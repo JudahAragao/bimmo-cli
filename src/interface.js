@@ -69,7 +69,7 @@ const Header = ({ config }) => (
   )
 );
 
-const Message = ({ role, content, displayContent, type, diff, output, message, config }) => {
+const Message = ({ role, content, displayContent, type, diff, output, message, config, isToolMessage }) => {
   const isUser = role === 'user';
   const color = isUser ? THEME.green : role === 'system' ? THEME.yellow : THEME.lavender;
   const label = isUser ? '› VOCÊ' : role === 'system' ? '› SISTEMA' : '› bimmo';
@@ -78,23 +78,23 @@ const Message = ({ role, content, displayContent, type, diff, output, message, c
     return h(Header, { config });
   }
 
-  if (type === 'tool') {
+  if (isToolMessage) {
     return h(Box, { flexDirection: 'column', marginBottom: 1, paddingLeft: 2 },
-      h(Box, { marginBottom: diff || output ? 1 : 0 },
-        h(Text, { color: THEME.yellow, bold: true }, `› ${message.toUpperCase()} `),
+      h(Box, { marginBottom: diff || output ? 0 : 0 },
+        h(Text, { color: THEME.yellow, bold: true }, `› ${message || 'FERRAMENTA'} `),
       ),
       diff && h(Box, { 
         flexDirection: 'column', 
         paddingX: 1, 
-        paddingY: 0,
+        paddingY: 1,
         borderStyle: 'single', 
         borderColor: THEME.gray,
-        dimColor: true
+        marginTop: 1
       },
         diff.split('\n').map((line, i) => h(Text, { key: i }, line))
       ),
       output && h(Box, { 
-        marginTop: 0, 
+        marginTop: 1, 
         paddingX: 1, 
         borderStyle: 'single', 
         borderColor: THEME.gray,
@@ -509,6 +509,4 @@ export async function startInteractive() {
   
   process.stdout.write('\x1Bc');
   render(h(BimmoApp, { initialConfig: config }), { exitOnCtrlC: false });
-}
-});
 }
