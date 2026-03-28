@@ -39,7 +39,7 @@ export class OpenAIProvider extends BaseProvider {
   }
 
   async sendMessage(messages, options = {}, toolCallCount = 0) {
-    const MAX_TOOL_CALLS = 10;
+    const MAX_TOOL_CALLS = 5;
     const formattedMessages = this.formatMessages(messages);
     
     const openAiTools = tools.map(t => ({

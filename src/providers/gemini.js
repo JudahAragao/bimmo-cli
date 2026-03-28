@@ -59,9 +59,8 @@ export class GeminiProvider extends BaseProvider {
     if (toolCalls.length > 0) {
       if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
       
-      let currentResponse = response;
       let callCount = 0;
-      const MAX_TOOL_CALLS = 10;
+      const MAX_TOOL_CALLS = 5;
 
       while (currentResponse.candidates[0].content.parts.some(p => p.functionCall)) {
         if (callCount >= MAX_TOOL_CALLS) {

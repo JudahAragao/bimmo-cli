@@ -358,6 +358,8 @@ const BimmoApp = ({ initialConfig }) => {
           }
         },
         onConfirm: (message) => {
+          setToolStatus(null);
+          setThinkingMessage('Aguardando sua decisão...');
           return new Promise((resolve) => {
             setConfirmation({ message, resolve });
           });
@@ -390,10 +392,12 @@ const BimmoApp = ({ initialConfig }) => {
       if (char.toLowerCase() === 'y' || key.return) {
         const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
+        setThinkingMessage('Aplicando mudanças...');
         resolve(true);
       } else if (char.toLowerCase() === 'n' || key.escape) {
         const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
+        setThinkingMessage('bimmo pensando...');
         resolve(false);
       }
       return;

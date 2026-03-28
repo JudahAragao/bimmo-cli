@@ -71,6 +71,8 @@ export const tools = [
     execute: async ({ path: filePath, content }, { onStatus, onConfirm }) => {
       try {
         const absolutePath = path.resolve(filePath);
+        onStatus?.({ type: 'write', message: `Analisando mudanças: ${filePath}` });
+        
         const oldContent = fs.existsSync(absolutePath) ? fs.readFileSync(absolutePath, 'utf-8') : "";
         
         const differences = diff.diffLines(oldContent, content);
@@ -84,7 +86,6 @@ export const tools = [
           
           if (part.added || part.removed) {
             if (lines.length > 20) {
-              // Resumo de grandes blocos de código
               lines.slice(0, 5).forEach(line => { diffString += `${prefix} ${line}\n` });
               diffString += `${prefix} ... (${lines.length - 10} linhas ocultas) ...\n`;
               lines.slice(-5).forEach(line => { if (line) diffString += `${prefix} ${line}\n` });
@@ -92,7 +93,6 @@ export const tools = [
               lines.forEach(line => { diffString += `${prefix} ${line}\n` });
             }
           } else {
-            // Contexto (linhas não alteradas)
             if (lines.length > 4) {
               diffString += `  ${lines[0]}\n  ...\n  ${lines[lines.length-1]}\n`;
             } else {
@@ -103,13 +103,14 @@ export const tools = [
 
         if (!hasChanges) return "Nenhuma mudança detectada.";
 
-        onStatus?.({ type: 'diff', message: `Alterando: ${filePath}`, diff: diffString });
+        onStatus?.({ type: 'diff', message: `Solicitando permissão para: ${filePath}`, diff: diffString });
 
         if (!editState.autoAccept) {
           const approved = await onConfirm?.(`Deseja aplicar as mudanças em ${filePath}?`);
           if (!approved) return "Alteração rejeitada pelo usuário.";
         }
 
+        onStatus?.({ type: 'write', message: `Escrevendo arquivo: ${filePath}` });
         const dir = path.dirname(absolutePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(absolutePath, content);

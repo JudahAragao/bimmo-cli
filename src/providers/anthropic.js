@@ -23,7 +23,7 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async sendMessage(messages, options = {}, toolCallCount = 0) {
-    const MAX_TOOL_CALLS = 10;
+    const MAX_TOOL_CALLS = 5;
     const systemMessage = messages.find(m => m.role === 'system');
     const userMessages = messages
       .filter(m => m.role !== 'system')
