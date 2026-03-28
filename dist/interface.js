@@ -23,7 +23,7 @@ const THEME = {
   cyan: "#8be9fd",
   border: "#44475a"
 };
-marked.use({
+marked.setOptions({
   renderer: new TerminalRenderer({
     heading: chalk.hex(THEME.lavender).bold,
     code: chalk.hex(THEME.green),
