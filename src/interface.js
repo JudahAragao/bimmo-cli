@@ -411,6 +411,14 @@ const BimmoApp = ({ initialConfig }) => {
 
       filePreview.length > 0 && h(AutocompleteSuggestions, { suggestions: filePreview, selectedIndex }),
 
+      // Preview do texto digitado com realce para @arquivos
+      input.includes('@') && h(Box, { paddingX: 3, marginBottom: 0 },
+        h(Text, { dimColor: true }, '› '),
+        input.split(/(@[\w\.\-\/]+)/g).map((part, i) => (
+          h(Text, { key: i, color: part.startsWith('@') ? THEME.yellow : THEME.gray, bold: part.startsWith('@') }, part)
+        ))
+      ),
+
       h(Box, { borderStyle: 'round', borderColor: isThinking ? THEME.gray : THEME.lavender, paddingX: 1 },        h(Text, { bold: true, color: mode === 'edit' ? THEME.red : mode === 'plan' ? THEME.cyan : THEME.lavender },
           `${activePersona ? `[${activePersona.toUpperCase()}] ` : ''}› `
         ),
