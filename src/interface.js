@@ -185,7 +185,6 @@ const BimmoApp = ({ initialConfig }) => {
   const [confirmation, setConfirmation] = useState(null); 
   const confirmationRef = useRef(null);
   const [exitCounter, setExitCounter] = useState(0);
-  const exitCounterRef = useRef(0);
   const isThinkingRef = useRef(false);
   const [provider, setProvider] = useState(() => createProvider(initialConfig));
   const abortControllerRef = useRef(null);
@@ -193,10 +192,6 @@ const BimmoApp = ({ initialConfig }) => {
   useEffect(() => {
     isThinkingRef.current = isThinking;
   }, [isThinking]);
-
-  useEffect(() => {
-    exitCounterRef.current = exitCounter;
-  }, [exitCounter]);
 
   useEffect(() => {
     confirmationRef.current = confirmation;
@@ -394,12 +389,15 @@ const BimmoApp = ({ initialConfig }) => {
         return;
       } 
       
-      if (exitCounterRef.current === 0) { 
-        setExitCounter(1); 
-        setTimeout(() => setExitCounter(0), 3000); 
-      } else {
-        exit();
-      }
+      setExitCounter(prev => {
+        if (prev === 0) {
+          setTimeout(() => setExitCounter(0), 3000);
+          return 1;
+        } else {
+          exit();
+          return prev;
+        }
+      });
       return;
     }
     if (key.tab && filePreview.length > 0) {
