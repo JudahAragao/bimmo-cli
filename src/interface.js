@@ -83,10 +83,23 @@ const Message = ({ role, content, displayContent, type, diff, output, message, c
       h(Box, { marginBottom: diff || output ? 1 : 0 },
         h(Text, { color: THEME.yellow, bold: true }, `› ${message.toUpperCase()} `),
       ),
-      diff && h(Box, { flexDirection: 'column', paddingLeft: 0 },
+      diff && h(Box, { 
+        flexDirection: 'column', 
+        paddingX: 1, 
+        paddingY: 0,
+        borderStyle: 'single', 
+        borderColor: THEME.gray,
+        dimColor: true
+      },
         diff.split('\n').map((line, i) => h(Text, { key: i }, line))
       ),
-      output && h(Box, { marginTop: 0 },
+      output && h(Box, { 
+        marginTop: 0, 
+        paddingX: 1, 
+        borderStyle: 'single', 
+        borderColor: THEME.gray,
+        dimColor: true 
+      },
         h(Text, { color: THEME.gray, dimColor: true }, output)
       )
     );

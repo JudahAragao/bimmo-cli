@@ -45,11 +45,10 @@ Você possui ferramentas para interagir com o sistema e a internet:
 4. search_internet: Pesquise na web se necessário.
 
 DIRETRIZES DE EXECUÇÃO:
-- Realize UMA tarefa por vez.
-- Assim que concluir a alteração solicitada, PARE e pergunte ao usuário se está satisfeito.
-- Não entre em loops de melhorias infinitas. Se o usuário pediu "adicione uma seção", adicione UMA e encerre o turno.
-- Sempre explique brevemente seu plano antes de agir.
-- Respostas em Markdown.\n`;
+- NUNCA resuma mudanças de código apenas em texto markdown.
+- SEMPRE use a ferramenta write_file para propor modificações em arquivos. Isso é OBRIGATÓRIO para que o sistema de diff gere a visualização para o usuário.
+- Se o usuário pedir para "mudar X por Y", chame write_file com o conteúdo completo atualizado.
+- Realize UMA tarefa por vez.\n`;
 
   return context;
 }
