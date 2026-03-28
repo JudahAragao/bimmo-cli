@@ -74,6 +74,17 @@ const Message = ({ role, content, displayContent }) => {
   const isUser = role === 'user';
   const color = isUser ? THEME.green : THEME.lavender;
   const label = isUser ? '› VOCÊ' : '› bimmo';
+
+  const renderUserContent = (text) => {
+    if (typeof text !== 'string') return text;
+    const parts = text.split(/(@[\w\.\-\/]+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return h(Text, { key: i, color: THEME.cyan, bold: true }, part);
+      }
+      return h(Text, { key: i }, part);
+    });
+  };
   
   return h(Box, { flexDirection: 'column', marginBottom: 1 },
     h(Box, null,
@@ -84,7 +95,7 @@ const Message = ({ role, content, displayContent }) => {
       h(Text, null, 
         role === 'assistant' 
           ? marked.parse(content).trim() 
-          : (displayContent || content)
+          : renderUserContent(displayContent || content)
       )
     )
   );
@@ -281,10 +292,12 @@ const BimmoApp = ({ initialConfig }) => {
     }
   };
 
-  useInput((input, key) => {
-    if (key.ctrl && input === 'c') {
-      if (isThinking) setIsThinking(false);
-      else {
+  useInput((char, key) => {
+    if (key.ctrl && char === 'c') {
+      if (isThinking) {
+        setIsThinking(false);
+        setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
+      } else {
         if (exitCounter === 0) { 
           setExitCounter(1); 
           setTimeout(() => setExitCounter(0), 2000); 
@@ -292,6 +305,7 @@ const BimmoApp = ({ initialConfig }) => {
           exit();
         }
       }
+      return;
     }
     if (key.tab && filePreview.length > 0) {
       const selected = filePreview[selectedIndex] || filePreview[0];

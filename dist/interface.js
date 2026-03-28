@@ -66,6 +66,16 @@ const Message = ({ role, content, displayContent }) => {
   const isUser = role === "user";
   const color = isUser ? THEME.green : THEME.lavender;
   const label = isUser ? "\u203A VOC\xCA" : "\u203A bimmo";
+  const renderUserContent = (text) => {
+    if (typeof text !== "string") return text;
+    const parts = text.split(/(@[\w\.\-\/]+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("@")) {
+        return h(Text, { key: i, color: THEME.cyan, bold: true }, part);
+      }
+      return h(Text, { key: i }, part);
+    });
+  };
   return h(
     Box,
     { flexDirection: "column", marginBottom: 1 },
@@ -81,7 +91,7 @@ const Message = ({ role, content, displayContent }) => {
       h(
         Text,
         null,
-        role === "assistant" ? marked.parse(content).trim() : displayContent || content
+        role === "assistant" ? marked.parse(content).trim() : renderUserContent(displayContent || content)
       )
     )
   );
@@ -273,10 +283,12 @@ ${getProjectContext()}` }, ...finalMessages.filter((m) => m.role !== "system")];
       setIsThinking(false);
     }
   };
-  useInput((input2, key) => {
-    if (key.ctrl && input2 === "c") {
-      if (isThinking) setIsThinking(false);
-      else {
+  useInput((char, key) => {
+    if (key.ctrl && char === "c") {
+      if (isThinking) {
+        setIsThinking(false);
+        setMessages((prev) => [...prev, { role: "system", content: "Interrompido pelo usu\xE1rio." }]);
+      } else {
         if (exitCounter === 0) {
           setExitCounter(1);
           setTimeout(() => setExitCounter(0), 2e3);
@@ -284,10 +296,11 @@ ${getProjectContext()}` }, ...finalMessages.filter((m) => m.role !== "system")];
           exit();
         }
       }
+      return;
     }
     if (key.tab && filePreview.length > 0) {
       const selected = filePreview[selectedIndex] || filePreview[0];
-      const words = input2.split(" ");
+      const words = input.split(" ");
       words[words.length - 1] = `@${selected.rel}${selected.isDir ? "/" : ""}`;
       setInput(words.join(" "));
     }
