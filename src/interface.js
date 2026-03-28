@@ -198,6 +198,7 @@ const BimmoApp = ({ initialConfig }) => {
   const [messages, setMessages] = useState([]);
   const [staticMessages, setStaticMessages] = useState([]); 
   const [input, setInput] = useState('');
+  const [inputKey, setInputKey] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingMessage, setThinkingMessage] = useState('bimmo pensando...');
@@ -511,6 +512,4 @@ export async function startInteractive() {
 
   process.stdout.write('\x1Bc');
   render(h(BimmoApp, { initialConfig: config }), { exitOnCtrlC: false });
-}
-lse });
 }
