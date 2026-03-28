@@ -203,6 +203,14 @@ const BimmoApp = ({ initialConfig }) => {
   }, [confirmation]);
 
   useEffect(() => {
+    const handleSigInt = () => {
+      // Ignora o sinal SIGINT para permitir que o useInput trate o Ctrl+C
+    };
+    process.on('SIGINT', handleSigInt);
+    return () => process.off('SIGINT', handleSigInt);
+  }, []);
+
+  useEffect(() => {
     const ctx = getProjectContext();
     setMessages([
       { role: 'system', content: ctx },
@@ -369,13 +377,13 @@ const BimmoApp = ({ initialConfig }) => {
     }
   };
 
-  useInput((char, key) => {
+  useInput((input, key) => {
     if (confirmationRef.current) {
-      if (char.toLowerCase() === 'y' || key.return) {
+      if (input.toLowerCase() === 'y' || key.return) {
         const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
         resolve(true);
-      } else if (char.toLowerCase() === 'n' || key.escape) {
+      } else if (input.toLowerCase() === 'n' || key.escape) {
         const resolve = confirmationRef.current.resolve;
         setConfirmation(null);
         resolve(false);
@@ -383,7 +391,7 @@ const BimmoApp = ({ initialConfig }) => {
       return;
     }
 
-    if (key.ctrl && char === 'c') {
+    if (key.ctrl && input === 'c') {
       if (isThinkingRef.current) {
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
@@ -391,13 +399,14 @@ const BimmoApp = ({ initialConfig }) => {
         setIsThinking(false);
         setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
         setExitCounter(0);
+        return;
+      } 
+      
+      if (exitCounterRef.current === 0) { 
+        setExitCounter(1); 
+        setTimeout(() => setExitCounter(0), 3000); 
       } else {
-        if (exitCounterRef.current === 0) { 
-          setExitCounter(1); 
-          setTimeout(() => setExitCounter(0), 3000); 
-        } else {
-          exit();
-        }
+        exit();
       }
       return;
     }
