@@ -51,7 +51,9 @@ export class GeminiProvider extends BaseProvider {
     });
 
     const result = await chat.sendMessage(lastMessageContent);
+    if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
     const response = await result.response;
+    if (options.signal?.aborted) throw new Error('Abortado pelo usuário');
     
     const toolCalls = response.candidates[0].content.parts.filter(p => p.functionCall);
     if (toolCalls.length > 0) {

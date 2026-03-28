@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { render, Box, Text, useInput, useApp, Static } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
@@ -185,6 +185,7 @@ const BimmoApp = ({ initialConfig }) => {
   const [confirmation, setConfirmation] = useState(null); 
   const [exitCounter, setExitCounter] = useState(0);
   const [provider, setProvider] = useState(() => createProvider(initialConfig));
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     const ctx = getProjectContext();
@@ -320,7 +321,11 @@ const BimmoApp = ({ initialConfig }) => {
         finalMessages = [{ role: 'system', content: `Sua tarefa: ${agent.role}\n\n${getProjectContext()}` }, ...finalMessages.filter(m => m.role !== 'system')];
       }
       
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
       const options = {
+        signal: abortController.signal,
         onStatus: (status) => {
           setToolStatus(status);
           if (status.message) setThinkingMessage(status.message);
@@ -335,9 +340,14 @@ const BimmoApp = ({ initialConfig }) => {
       const response = await provider.sendMessage(finalMessages, options);
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'system', content: `Erro: ${err.message}` }]);
+      if (err.name === 'AbortError' || err.message === 'Abortado pelo usuário') {
+        // Interrupção silenciosa já adicionada no useInput
+      } else {
+        setMessages(prev => [...prev, { role: 'system', content: `Erro: ${err.message}` }]);
+      }
     } finally {
       setIsThinking(false);
+      abortControllerRef.current = null;
       setToolStatus(null);
       setConfirmation(null);
       setThinkingMessage('bimmo pensando...');
@@ -360,12 +370,16 @@ const BimmoApp = ({ initialConfig }) => {
 
     if (key.ctrl && char === 'c') {
       if (isThinking) {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
         setIsThinking(false);
         setMessages(prev => [...prev, { role: 'system', content: 'Interrompido pelo usuário.' }]);
+        setExitCounter(0);
       } else {
         if (exitCounter === 0) { 
           setExitCounter(1); 
-          setTimeout(() => setExitCounter(0), 2000); 
+          setTimeout(() => setExitCounter(0), 3000); 
         } else {
           exit();
         }
@@ -426,7 +440,8 @@ const BimmoApp = ({ initialConfig }) => {
           value: input, 
           onChange: setInput, 
           onSubmit: handleSubmit, 
-          placeholder: 'Diga algo ou use / para comandos...' 
+          placeholder: 'Diga algo ou use / para comandos...',
+          focus: !isThinking && !confirmation
         })
       ),
       
