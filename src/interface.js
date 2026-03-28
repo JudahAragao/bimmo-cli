@@ -76,10 +76,12 @@ const Message = ({ role, content, displayContent }) => {
 
   const renderUserContent = (text) => {
     if (typeof text !== 'string') return text;
+    // Regex melhorado para capturar @arquivo.ext ou @caminho/arquivo.ext
     const parts = text.split(/(@[\w\.\-\/]+)/g);
     return parts.map((part, i) => {
       if (part.startsWith('@')) {
-        return h(Text, { key: i, color: THEME.cyan, bold: true }, part);
+        // Usando Amarelo para destacar do texto branco/cinza
+        return h(Text, { key: i, color: THEME.yellow, bold: true }, part);
       }
       return h(Text, { key: i }, part);
     });
