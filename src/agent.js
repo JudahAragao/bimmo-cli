@@ -94,33 +94,31 @@ export const tools = [
           if (part.added || part.removed) {
             hasChanges = true;
             lines.forEach(line => {
-              const oldNum = prefix === '-' ? lineNoOld.toString().padStart(4) : '    ';
-              const newNum = prefix === '+' ? lineNoNew.toString().padStart(4) : '    ';
+              const num = prefix === '-' ? lineNoOld.toString().padStart(4) : lineNoNew.toString().padStart(4);
               const color = prefix === '+' ? chalk.green : chalk.red;
+              const bg = prefix === '+' ? chalk.bgGreen.black : chalk.bgRed.black;
               
-              diffString += `${chalk.gray(oldNum)} ${chalk.gray(newNum)} ${color(prefix + ' ' + line)}\n`;
+              diffString += `${chalk.gray(num)} ${chalk.gray('│')} ${color(prefix + ' ' + line)}\n`;
               
               if (prefix === '+') lineNoNew++; else lineNoOld++;
             });
           } else {
             // Contexto (linhas não alteradas)
             if (lines.length > 6) {
-              // Mostra 3 no início
               for (let i = 0; i < 3; i++) {
-                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${lines[i]}\n`;
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray('│')}   ${lines[i]}\n`;
                 lineNoOld++; lineNoNew++;
               }
-              diffString += `${chalk.dim('.... ....   ' + (lines.length - 6) + ' linhas ocultas...')}\n`;
+              diffString += `${chalk.gray('....')} ${chalk.gray('│')}   ${chalk.dim((lines.length - 6) + ' linhas ocultas...')}\n`;
               lineNoOld += lines.length - 6;
               lineNoNew += lines.length - 6;
-              // Mostra 3 no fim
               for (let i = lines.length - 3; i < lines.length; i++) {
-                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${lines[i]}\n`;
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray('│')}   ${lines[i]}\n`;
                 lineNoOld++; lineNoNew++;
               }
             } else {
               lines.forEach(line => {
-                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray(lineNoNew.toString().padStart(4))}   ${line}\n`;
+                diffString += `${chalk.gray(lineNoOld.toString().padStart(4))} ${chalk.gray('│')}   ${line}\n`;
                 lineNoOld++; lineNoNew++;
               });
             }
