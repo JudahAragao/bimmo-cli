@@ -69,10 +69,14 @@ const Header = ({ config }) => (
   )
 );
 
-const Message = ({ role, content, displayContent, type, diff, output, message }) => {
+const Message = ({ role, content, displayContent, type, diff, output, message, config }) => {
   const isUser = role === 'user';
   const color = isUser ? THEME.green : role === 'system' ? THEME.yellow : THEME.lavender;
   const label = isUser ? '› VOCÊ' : role === 'system' ? '› SISTEMA' : '› bimmo';
+
+  if (type === 'header') {
+    return h(Header, { config });
+  }
 
   if (type === 'tool') {
     return h(Box, { flexDirection: 'column', marginBottom: 1, paddingLeft: 2 },
@@ -210,6 +214,7 @@ const BimmoApp = ({ initialConfig }) => {
     const ctx = getProjectContext();
     setMessages([{ role: 'system', content: ctx }]);
     setStaticMessages([
+      { role: 'system', type: 'header', config: initialConfig },
       { role: 'assistant', content: `Olá! Sou o **bimmo v${version}**. Como posso ajudar hoje?\n\nDigite \`/help\` para ver os comandos.` }
     ]);
   }, []);
@@ -259,8 +264,12 @@ const BimmoApp = ({ initialConfig }) => {
 
     if (cmd === '/exit') exit();
     if (cmd === '/clear') {
-      setStaticMessages([]);
-      setMessages([{ role: 'system', content: getProjectContext() }, { role: 'assistant', content: 'Chat limpo.' }]);
+      const ctx = getProjectContext();
+      setStaticMessages([
+        { role: 'system', type: 'header', config: config },
+        { role: 'assistant', content: 'Chat limpo.' }
+      ]);
+      setMessages([{ role: 'system', content: ctx }]);
       return;
     }
     if (['/chat', '/plan', '/edit'].includes(cmd)) {
@@ -435,8 +444,6 @@ const BimmoApp = ({ initialConfig }) => {
 
   return (
     h(Box, { flexDirection: 'column', paddingX: 2, paddingY: 1, minHeight: 15 },
-      h(Header, { config }),
-      
       h(Box, { flexDirection: 'column', flexGrow: 1, marginBottom: 1 },
         h(Static, { items: staticMessages }, (m, i) => h(Message, { key: `static-${i}`, ...m }))
       ),
