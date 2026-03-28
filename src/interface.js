@@ -104,8 +104,14 @@ const AutocompleteSuggestions = ({ suggestions, selectedIndex }) => (
   h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: THEME.border, paddingX: 1, marginBottom: 1 },
     h(Text, { color: THEME.gray, dimColor: true, italic: true }, 'Sugestões (↑↓ navega, TAB seleciona):'),
     suggestions.map((f, i) => (
-      h(Text, { key: i, color: i === selectedIndex ? THEME.green : THEME.gray, bold: i === selectedIndex },
-        `${i === selectedIndex ? '› ' : '  '}${f.isDir ? '📁' : '📄'} ${f.rel}${f.isDir ? '/' : ''}`
+      h(Box, { key: i },
+        h(Text, { 
+          backgroundColor: i === selectedIndex ? THEME.green : undefined,
+          color: i === selectedIndex ? '#000000' : THEME.gray,
+          bold: i === selectedIndex 
+        },
+          `${i === selectedIndex ? ' › ' : '   '}${f.isDir ? '📁' : '📄'} ${f.rel}${f.isDir ? '/' : ''} `
+        )
       )
     ))
   )
